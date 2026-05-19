@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cold Front — Fleet Maintenance Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --charcoal:#2d2d2d;--mid:#666;--light:#999;--rule:#e0e0e0;
+  --bg:#f7f7f7;--white:#fff;
+  --ok:#2e7d32;--ok-bg:#c8e6c9;--ok-border:#a5d6a7;
+  --wrn:#856404;--wrn-bg:#fff3cd;--wrn-border:#ffe082;
+  --act:#b71c1c;--act-bg:#ffcdd2;--act-border:#ef9a9a;
+  --sans:'DM Sans',sans-serif;--mono:'DM Mono',monospace;
+}
+html,body{height:100%;background:var(--bg);font-family:var(--sans);color:var(--charcoal);}
+body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48px;}
+.app{width:100%;max-width:1100px;background:var(--white);border:1px solid var(--rule);}
+
+/* HEADER */
+.cf-header{background:#2d2d2d;padding:20px 28px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+.cf-wordmark{font-size:20px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#fff;text-indent:0.28em;}
+.cf-header-sub{font-size:11px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-top:4px;}
+.cf-header-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.hbtn{font-family:var(--sans);font-size:13px;font-weight:500;padding:8px 16px;cursor:pointer;display:flex;align-items:center;gap:6px;border-radius:2px;border:1.5px solid rgba(255,255,255,0.25);background:transparent;color:#ccc;transition:all 0.12s;}
+.hbtn:hover{color:#fff;border-color:rgba(255,255,255,0.55);background:rgba(255,255,255,0.08);}
+.hbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+
+/* SYNC BAR */
+.sync-bar{background:#1e1e1e;padding:5px 28px;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,0.45);letter-spacing:0.04em;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;transition:background 0.3s;}
+.sync-dot.ok{background:var(--ok);}
+.sync-dot.err{background:var(--act);}
+.sync-dot.saving{background:#f59e0b;animation:pulse 0.8s infinite alternate;}
+@keyframes pulse{to{opacity:0.3;}}
+.sync-user{margin-left:auto;font-size:11px;color:rgba(255,255,255,0.35);}
+
+/* LOGIN SCREEN */
+.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;min-height:400px;gap:20px;}
+.login-screen h2{font-size:18px;font-weight:600;color:var(--charcoal);}
+.login-screen p{font-size:14px;color:var(--mid);max-width:400px;line-height:1.6;}
+.login-btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:12px 28px;cursor:pointer;border-radius:2px;border:2px solid var(--charcoal);background:var(--charcoal);color:#fff;transition:all 0.12s;display:flex;align-items:center;gap:8px;}
+.login-btn:hover{background:#444;}
+.login-btn svg{width:18px;height:18px;fill:#fff;}
+.config-note{font-size:12px;color:var(--light);background:var(--bg);border:1px solid var(--rule);border-radius:2px;padding:12px 16px;max-width:460px;text-align:left;line-height:1.7;}
+.config-note b{color:var(--charcoal);}
+.config-note code{font-family:var(--mono);font-size:11px;background:#e8e8e8;padding:1px 5px;border-radius:2px;}
+
+/* TOAST */
+.toast{display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:3px;font-size:13px;font-weight:600;z-index:200;white-space:nowrap;box-shadow:0 2px 12px rgba(0,0,0,0.15);}
+.toast.warn{background:var(--wrn-bg);border:1px solid var(--wrn-border);color:var(--wrn);}
+.toast.good{background:var(--ok-bg);border:1px solid var(--ok-border);color:var(--ok);}
+.toast.err{background:var(--act-bg);border:1px solid var(--act-border);color:var(--act);}
+.toast.show{display:block;}
+
+/* STATS */
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule);}
+.stat-cell{padding:14px 20px;border-right:1px solid var(--rule);background:var(--bg);}
+.stat-cell:last-child{border-right:none;}
+.stat-val{font-size:21px;font-weight:700;color:var(--charcoal);}
+.stat-lbl{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-top:3px;}
+
+/* BODY */
+.body{display:grid;grid-template-columns:300px 1fr;min-height:520px;}
+@media(max-width:700px){.body{grid-template-columns:1fr;}.stats-bar{grid-template-columns:1fr 1fr;}}
+.left{border-right:1px solid var(--rule);display:flex;flex-direction:column;background:var(--white);}
+.panel-head{padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;}
+.drop-zone{margin:12px;border:1.5px dashed var(--rule);padding:18px 10px;text-align:center;cursor:pointer;transition:all 0.15s;border-radius:2px;}
+.drop-zone.over,.drop-zone:hover{border-color:var(--charcoal);background:var(--bg);}
+.dz-main{font-size:13px;font-weight:600;color:var(--charcoal);margin-bottom:4px;}
+.dz-sub{font-size:12px;color:var(--light);}
+.dz-link{color:var(--charcoal);text-decoration:underline;cursor:pointer;}
+.veh-list{flex:1;overflow-y:auto;}
+.veh-empty{padding:24px 16px;font-size:13px;color:var(--light);text-align:center;line-height:1.7;}
+.veh-item{padding:11px 16px;border-bottom:1px solid var(--rule);cursor:pointer;display:flex;align-items:center;gap:10px;transition:background 0.1s;}
+.veh-item:hover{background:var(--bg);}
+.veh-item.active{background:var(--bg);border-left:3px solid var(--charcoal);padding-left:13px;}
+.veh-rego{font-size:13px;font-weight:700;font-family:var(--mono);letter-spacing:0.06em;}
+.veh-model{font-size:11px;color:var(--light);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
+.veh-right{margin-left:auto;text-align:right;flex-shrink:0;}
+.veh-total{font-size:13px;font-weight:700;}
+.veh-cnt{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--light);margin-top:2px;}
+
+/* RIGHT */
+.right{display:flex;flex-direction:column;background:var(--white);}
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--light);gap:12px;padding:40px;text-align:center;}
+.empty-state svg{width:44px;height:44px;stroke:var(--light);fill:none;stroke-width:1.5;opacity:0.3;}
+.empty-state p{font-size:13px;line-height:1.6;}
+.detail{flex:1;overflow-y:auto;padding:24px 28px;}
+.detail-top{display:flex;align-items:flex-start;justify-content:space-between;padding-bottom:18px;border-bottom:2px solid var(--charcoal);margin-bottom:16px;}
+.d-rego{font-size:22px;font-weight:700;font-family:var(--mono);letter-spacing:0.1em;}
+.d-model{font-size:13px;color:var(--mid);margin-top:4px;}
+.d-vin{font-size:11px;font-family:var(--mono);color:var(--light);margin-top:3px;}
+.d-spend-val{font-size:22px;font-weight:700;color:var(--ok);text-align:right;}
+.d-spend-lbl{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--light);text-align:right;margin-top:3px;}
+.d-inv-count{font-size:11px;color:var(--light);text-align:right;margin-top:4px;}
+.d-delete{font-size:11px;color:var(--act);cursor:pointer;text-align:right;margin-top:6px;text-decoration:underline;}
+.d-delete:hover{color:#7f0000;}
+.odom-box{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+.odom-card{background:var(--bg);border:1px solid var(--rule);border-radius:2px;padding:12px 16px;}
+.odom-card-lbl{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--light);margin-bottom:4px;display:flex;align-items:center;gap:5px;}
+.odom-card-lbl svg{width:13px;height:13px;stroke:var(--light);fill:none;stroke-width:2;stroke-linecap:round;}
+.odom-card-val{font-size:17px;font-weight:700;font-family:var(--mono);}
+.odom-card-sub{font-size:11px;color:var(--light);margin-top:2px;}
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:var(--light);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--rule);}
+.inv-stack{display:flex;flex-direction:column;}
+.inv-row{border:1px solid var(--rule);border-bottom:none;}
+.inv-row:last-child{border-bottom:1px solid var(--rule);}
+.inv-summary-row{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;transition:background 0.1s;flex-wrap:wrap;}
+.inv-summary-row:hover,.inv-summary-row.open{background:var(--bg);}
+.inv-num{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-family:var(--mono);}
+.inv-date{font-size:12px;color:var(--mid);}
+.inv-odom{font-size:11px;font-family:var(--mono);color:var(--light);background:var(--white);border:1px solid var(--rule);padding:2px 8px;border-radius:2px;display:flex;align-items:center;gap:4px;}
+.inv-odom svg{width:11px;height:11px;stroke:var(--light);fill:none;stroke-width:2;}
+.inv-pill{font-size:12px;font-weight:700;color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-border);padding:2px 10px;border-radius:2px;margin-left:auto;}
+.inv-chev{font-size:12px;color:var(--light);transition:transform 0.2s;flex-shrink:0;margin-left:4px;}
+.inv-chev.open{transform:rotate(180deg);}
+.inv-quick{font-size:12px;color:var(--mid);padding:0 14px 9px;display:flex;align-items:center;gap:5px;}
+.inv-quick svg{width:12px;height:12px;stroke:var(--light);fill:none;stroke-width:2;flex-shrink:0;}
+.inv-detail{display:none;border-top:1px solid var(--rule);padding:12px 14px;}
+.inv-detail.open{display:block;}
+.line-tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+.line-tbl th{text-align:left;padding:4px 6px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:1px solid var(--rule);}
+.line-tbl td{padding:5px 6px;color:var(--charcoal);border-bottom:1px solid var(--rule);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.line-tbl tr:last-child td{border-bottom:none;}
+.line-tbl td.mono{font-family:var(--mono);font-size:11px;color:var(--light);}
+.line-tbl td.right,.line-tbl th.right{text-align:right;font-family:var(--mono);}
+.line-tbl td.nc{color:var(--light);font-style:italic;}
+.line-tbl tr:hover td{background:var(--bg);}
+.inv-notes{margin-top:10px;font-size:11px;color:var(--mid);background:var(--bg);border-left:3px solid var(--charcoal);padding:8px 10px;line-height:1.6;}
+.inv-foot{display:flex;gap:20px;margin-top:10px;padding-top:8px;border-top:1px solid var(--rule);flex-wrap:wrap;}
+.inv-foot span{font-size:11px;color:var(--light);}
+.inv-foot b{color:var(--mid);font-weight:600;}
+.inv-del-row{padding:6px 14px 10px;text-align:right;}
+.inv-del-btn{font-size:11px;color:var(--act);cursor:pointer;background:none;border:none;font-family:var(--sans);text-decoration:underline;}
+.inv-del-btn:hover{color:#7f0000;}
+
+/* DATA BAR */
+.data-bar{border-top:1px solid var(--rule);padding:10px 16px;display:flex;align-items:center;gap:8px;background:var(--bg);flex-wrap:wrap;}
+.data-bar-lbl{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-right:4px;}
+.data-btn{font-family:var(--sans);font-size:11px;font-weight:600;padding:5px 12px;cursor:pointer;border-radius:2px;border:1px solid var(--rule);background:var(--white);color:var(--mid);transition:all 0.1s;}
+.data-btn:hover{border-color:var(--charcoal);color:var(--charcoal);}
+.data-btn.danger{border-color:var(--act-border);color:var(--act);}
+.data-btn.danger:hover{background:var(--act-bg);}
+
+/* PROC */
+.proc-overlay{display:none;position:fixed;inset:0;background:rgba(247,247,247,0.92);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:14px;font-weight:500;color:var(--mid);}
+.proc-overlay.show{display:flex;}
+.spinner{width:30px;height:30px;border:3px solid var(--rule);border-top-color:var(--charcoal);border-radius:50%;animation:spin 0.75s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+<div class="proc-overlay" id="procOverlay"><div class="spinner"></div><span id="procMsg">Reading invoice…</span></div>
+
+<div class="app" id="app">
+  <div class="cf-header">
+    <div>
+      <div class="cf-wordmark">Cold Front</div>
+      <div class="cf-header-sub">Fleet Maintenance Tracker</div>
+    </div>
+    <div class="cf-header-right" id="headerBtns" style="display:none;">
+      <button class="hbtn" onclick="document.getElementById('fi').click()">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Invoices
+      </button>
+      <button class="hbtn" onclick="exportXLS()">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        Export to Excel
+      </button>
+      <button class="hbtn" onclick="signOut()">
+        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </button>
+      <input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
+    </div>
+  </div>
+
+  <div class="sync-bar">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncLbl">Not signed in</span>
+    <span class="sync-user" id="syncUser"></span>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <div class="login-screen" id="loginScreen">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    <h2>Sign in to access the Fleet Tracker</h2>
+    <p>Uses your Microsoft 365 account to store data securely on OneDrive. No passwords stored — sign in with your existing work account.</p>
+    <button class="login-btn" onclick="signIn()">
+      <svg viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg"><path fill="#f3f3f3" d="M0 0h23v23H0z"/><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
+      Sign in with Microsoft
+    </button>
+    <div class="config-note" id="configNote">
+      <b>First time setup?</b> You need to add your Azure App ID below before signing in.<br><br>
+      App Client ID: <input id="clientIdInput" type="text" placeholder="paste-your-client-id-here" value="ebad459b-f733-4059-9bd0-39a065d3d646"
+        style="font-family:var(--mono);font-size:11px;border:1px solid var(--rule);padding:4px 8px;width:100%;margin-top:4px;border-radius:2px;color:var(--charcoal);"
+        oninput="saveClientId(this.value)">
+      <br><br>
+      See <b>SETUP_GUIDE.txt</b> in this folder for the 5-minute setup instructions.
+    </div>
+  </div>
+
+  <!-- MAIN APP (hidden until signed in) -->
+  <div id="mainApp" style="display:none;">
+    <div class="stats-bar">
+      <div class="stat-cell"><div class="stat-val" id="sv">0</div><div class="stat-lbl">Vehicles</div></div>
+      <div class="stat-cell"><div class="stat-val" id="si">0</div><div class="stat-lbl">Invoices</div></div>
+      <div class="stat-cell"><div class="stat-val" id="st">$0</div><div class="stat-lbl">Total Spend</div></div>
+      <div class="stat-cell"><div class="stat-val" id="sd">—</div><div class="stat-lbl">Latest Service</div></div>
+    </div>
+    <div class="body">
+      <div class="left">
+        <div class="panel-head"><span>Vehicles</span><span id="vc">0 registered</span></div>
+        <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
+          <div class="dz-main">&#8679; Drop invoice PDFs here</div>
+          <div class="dz-sub">or <span class="dz-link">browse to upload</span></div>
+        </div>
+        <div class="veh-list" id="vl">
+          <div class="veh-empty">No vehicles yet.<br>Upload invoices to begin.</div>
+        </div>
+      </div>
+      <div class="right">
+        <div class="empty-state" id="es">
+          <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          <p>Select a vehicle to view<br>its service history</p>
+        </div>
+        <div class="detail" id="dv" style="display:none;"></div>
+      </div>
+    </div>
+    <div class="data-bar">
+      <span class="data-bar-lbl">Records</span>
+      <button class="data-btn danger" onclick="clearAll()">Clear all records</button>
+      <span style="margin-left:auto;font-size:11px;color:var(--light);" id="savedLbl"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+// Your Azure App Client ID is stored in localStorage so it persists
+const ONEDRIVE_FILE = 'ColdFront_fleet_data.json';
+const GRAPH_BASE    = 'https://graph.microsoft.com/v1.0';
+const SCOPES        = ['Files.ReadWrite', 'User.Read'];
+
+function getClientId(){ return localStorage.getItem('cf_client_id') || 'ebad459b-f733-4059-9bd0-39a065d3d646'; }
+function saveClientId(v){ localStorage.setItem('cf_client_id',v.trim()); }
+
+// Pre-fill input if already saved
+window.addEventListener('DOMContentLoaded',()=>{
+  const saved = getClientId();
+  if(saved) document.getElementById('clientIdInput').value = saved;
+});
+
+function getMsalApp(){
+  const clientId = getClientId();
+  if(!clientId){
+    showToast('Please enter your Azure App Client ID first.','err');
+    return null;
+  }
+  return new msal.PublicClientApplication({
+    auth:{
+      clientId,
+      authority:'https://login.microsoftonline.com/417a0740-a32c-44da-8b2c-540d46613fb5',
+      redirectUri: 'https://oceanairptyltd1.sharepoint.com/sites/AAAWORDCOMMON/Shared%20Documents/COLD%20FRONT/SYSTEMS%20DASH%20BOARD/Fleet%20Manager/ColdFront_FleetTracker_LIVE.html'
+    },
+    cache:{ cacheLocation:'localStorage', storeAuthStateInCookie:false }
+  });
+}
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+let msalApp = null;
+let currentAccount = null;
+
+async function signIn(){
+  console.log('signIn clicked');
+  const clientId = getClientId();
+  console.log('clientId:', clientId);
+  if(!clientId){
+    showToast('No Client ID found — please paste it in the box.','err');
+    return;
+  }
+  if(!msalApp){
+    msalApp = getMsalApp();
+  }
+  if(!msalApp){
+    showToast('Could not initialise Microsoft login.','err');
+    return;
+  }
+  try{
+    console.log('initialising msal...');
+    await msalApp.initialize();
+    console.log('calling loginRedirect...');
+    showToast('Redirecting to Microsoft login…','good');
+    setTimeout(async()=>{
+      await msalApp.loginRedirect({ scopes: SCOPES });
+    }, 500);
+  }catch(e){
+    console.error('signIn error:', e);
+    showToast('Sign in error: '+e.message,'err');
+  }
+}
+
+async function signOut(){
+  if(!msalApp || !currentAccount) return;
+  await msalApp.logoutRedirect({ account: currentAccount });
+}
+
+async function getToken(){
+  if(!msalApp || !currentAccount) return null;
+  try{
+    const r = await msalApp.acquireTokenSilent({ scopes: SCOPES, account: currentAccount });
+    return r.accessToken;
+  }catch(e){
+    try{
+      await msalApp.acquireTokenRedirect({ scopes: SCOPES, account: currentAccount });
+      return null;
+    }catch(e2){ return null; }
+  }
+}
+
+async function onSignedIn(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+  document.getElementById('headerBtns').style.display='flex';
+  document.getElementById('syncUser').textContent = currentAccount.username;
+  setSyncStatus('saving','Loading data from OneDrive…');
+  await loadFromOneDrive();
+  // Poll for changes every 30s
+  setInterval(pollChanges, 30000);
+}
+
+function showLoginScreen(){
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('mainApp').style.display='none';
+  document.getElementById('headerBtns').style.display='none';
+  document.getElementById('syncUser').textContent='';
+  setSyncStatus('','Not signed in');
+}
+
+// Handle redirect response and silent sign-in on page load
+window.addEventListener('DOMContentLoaded', async()=>{
+  const clientId = getClientId();
+  if(!clientId) return;
+  msalApp = getMsalApp();
+  if(!msalApp) return;
+  try{
+    await msalApp.initialize();
+    // Handle redirect response first (coming back from Microsoft login)
+    const response = await msalApp.handleRedirectPromise();
+    if(response && response.account){
+      currentAccount = response.account;
+      await onSignedIn();
+      return;
+    }
+    // Check if already signed in
+    const accounts = msalApp.getAllAccounts();
+    if(accounts.length > 0){
+      currentAccount = accounts[0];
+      await onSignedIn();
+    }
+  }catch(e){
+    console.error('Init error:', e);
+  }
+});
+
+// ── ONEDRIVE API ──────────────────────────────────────────────────────────────
+function setSyncStatus(state,msg){
+  document.getElementById('syncDot').className='sync-dot '+(state||'');
+  document.getElementById('syncLbl').textContent=msg;
+}
+
+async function loadFromOneDrive(){
+  const token = await getToken();
+  if(!token){ setSyncStatus('err','Could not get access token'); return; }
+  try{
+    const r = await fetch(`${GRAPH_BASE}/me/drive/root:/${ONEDRIVE_FILE}:/content`,{
+      headers:{ Authorization:'Bearer '+token }
+    });
+    if(r.status === 404){
+      // File doesn't exist yet — fresh start
+      setSyncStatus('ok','Connected · No data yet — upload your first invoice');
+      return;
+    }
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    Object.assign(S.vehicles, data);
+    renderList(); updateStats();
+    const count = Object.keys(S.vehicles).length;
+    setSyncStatus('ok','Connected · '+count+' vehicle'+(count!==1?'s':'')+' loaded');
+  }catch(e){
+    setSyncStatus('err','Could not load data: '+e.message);
+    showToast('Could not load from OneDrive: '+e.message,'err');
+  }
+}
+
+let saveTimer = null;
+function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveToOneDrive, 800); }
+
+async function saveToOneDrive(){
+  const token = await getToken();
+  if(!token){ setSyncStatus('err','Could not get access token'); return; }
+  setSyncStatus('saving','Saving to OneDrive…');
+  try{
+    const body = JSON.stringify(S.vehicles, null, 2);
+    const r = await fetch(`${GRAPH_BASE}/me/drive/root:/${ONEDRIVE_FILE}:/content`,{
+      method:'PUT',
+      headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const count = Object.keys(S.vehicles).length;
+    const t = new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+    setSyncStatus('ok','Saved · '+t);
+    document.getElementById('savedLbl').textContent='Last saved '+t;
+  }catch(e){
+    setSyncStatus('err','Save failed: '+e.message);
+    showToast('OneDrive save failed: '+e.message,'err');
+  }
+}
+
+async function pollChanges(){
+  const token = await getToken();
+  if(!token) return;
+  try{
+    const r = await fetch(`${GRAPH_BASE}/me/drive/root:/${ONEDRIVE_FILE}:/content`,{
+      headers:{ Authorization:'Bearer '+token }
+    });
+    if(!r.ok) return;
+    const fresh = await r.json();
+    let changed = false;
+    Object.keys(fresh).forEach(rego=>{
+      if(!S.vehicles[rego]){ S.vehicles[rego]=fresh[rego]; changed=true; }
+      else{
+        fresh[rego].invoices.forEach(inv=>{
+          if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
+            S.vehicles[rego].invoices.push(inv);
+            S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
+            changed=true;
+          }
+        });
+      }
+    });
+    if(changed){ renderList(); updateStats(); if(S.sel) selectVeh(S.sel); }
+  }catch(e){}
+}
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const S={vehicles:{},sel:null};
+
+// ── PDF PROCESSING ────────────────────────────────────────────────────────────
+const dz=document.getElementById('dz');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');handleFiles(e.dataTransfer.files);});
+function handleFiles(files){
+  const pdfs=Array.from(files).filter(f=>f.name.toLowerCase().endsWith('.pdf'));
+  if(!pdfs.length)return;
+  (async()=>{for(const f of pdfs) await readPdf(f);})();
+}
+async function readPdf(file){
+  showProc(true,file.name);
+  try{
+    const ab=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:ab}).promise;
+    let items=[];
+    for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();items=items.concat(c.items);}
+    parse(items,file.name);
+  }catch(e){console.error(e);alert('Could not read: '+file.name);}
+  showProc(false);
+}
+function parse(items,filename){
+  const fullText=items.map(s=>s.str).join(' ');
+  const invM=fullText.match(/Tax Invoice\s+(\d{5,7})/i)||fullText.match(/Number:[^0-9]*(\d{5,7})/i);
+  const invNum=invM?invM[1]:filename.replace('.pdf','');
+  const dateM=fullText.match(/Date:\s*(\d{1,2}\s+\w+\s+\d{2,4})/i);
+  const date=dateM?dateM[1]:'';
+  const regoM=fullText.match(/Vehicle Details:\s*([A-Z0-9]{4,8})\s/i);
+  const rego=regoM?regoM[1]:'UNK-'+invNum;
+  const modelM=fullText.match(/Vehicle Details:\s*[A-Z0-9]{4,8}\s+(\d{2}\s+[A-Z][A-Z0-9 &\/\-]+?)(?:\s+[A-Z0-9]{4,8}\s|\s+MR[0-9])/i);
+  const model=modelM?modelM[1].trim():'Unknown Vehicle';
+  const vinM=fullText.match(/\b(MR[0-9A-Z]{14,17})\b/i);
+  const vin=vinM?vinM[1]:'';
+  let odometer=0;
+  for(const p of[/Odometer In:\s*([\d,]+)/i,/Odometer[^:]*:\s*([\d,]+)/i]){
+    const m=fullText.match(p);if(m){const v=parseInt(m[1].replace(/,/g,''));if(v>1000){odometer=v;break;}}
+  }
+  const totalM=fullText.match(/Total\s*\$\s*([\d,]+\.?\d*)/i);
+  const total=totalM?parseFloat(totalM[1].replace(/,/g,'')):0;
+  const gstM=fullText.match(/GST of\s*([\d,]+\.?\d*)/i);
+  const gst=gstM?parseFloat(gstM[1].replace(/,/g,'')):0;
+  const lines=parseLineItems(items,fullText);
+  const notes=parseNotes(fullText);
+  const summary=buildSummary(notes,lines);
+  const inv={invNum,date,rego,model,vin,odometer,total,gst,lines,notes,summary};
+  if(!S.vehicles[rego])S.vehicles[rego]={rego,model,vin,invoices:[]};
+  if(S.vehicles[rego].invoices.find(i=>i.invNum===invNum)){
+    showToast('Invoice #'+invNum+' already entered for '+rego+' — no changes made.','warn');return;
+  }
+  S.vehicles[rego].invoices.push(inv);
+  S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
+  scheduleSave();renderList();updateStats();
+  if(S.sel===rego||!S.sel)selectVeh(rego);
+  showToast('Invoice #'+invNum+' added for '+rego+'.','good');
+}
+function parseLineItems(items,fullText){
+  const lines=[];
+  const SKIP=/^(QTY|Unit Price|Excl GST|Incl GST|Total|Payment|Our New|ALL CARD|Received|Completed|Last Printed|Customer Service|Warranty|Terms and|Manager|Written By|Contact|Mobile|Bus Ph|Email|Deliver|Salesperson|Item|Zedhill|Gold Coast|Cnr Kortum|West Burleigh|Tax Invoice|Customer:|ABN|COLD FRONT|BURLEIGH|3 DAVO|Odometer|Vehicle Details|Page:|Written|Description)$/i;
+  const str=items.map(s=>s.str.trim()).filter(s=>s.length>0);
+  let i=0;
+  while(i<str.length){
+    const tok=str[i];
+    if(/^[A-Z0-9][A-Z0-9_\-\.]{2,19}$/i.test(tok)&&!/^(N\/C|N|C|QTY|GST|ABN|OK|ATT|NH|INC|MR|OUT|IN)$/i.test(tok)&&!SKIP.test(tok)){
+      let j=i+1;let descParts=[];
+      while(j<str.length&&!/^\d+$/.test(str[j])&&!/^[\d,]+\.[\d]{2}$/.test(str[j])&&!/^N\/C$/i.test(str[j])&&descParts.length<10){
+        if(!SKIP.test(str[j])&&str[j].length>0)descParts.push(str[j]);j++;
+      }
+      const desc=descParts.join(' ').trim();
+      if(desc.length<3){i++;continue;}
+      const isNC=/^N\/C$/i.test(str[j]);
+      if(isNC){lines.push({code:tok,desc,qty:'1',unitIncl:'N/C',lineTotal:'0',nc:true});i=j+3;continue;}
+      if(!str[j]||!/^\d{1,3}$/.test(str[j])){i++;continue;}
+      const qty=str[j];j++;
+      if(!str[j]||!/^[\d,]+\.[\d]{2}$/.test(str[j])){i++;continue;}j++;
+      if(!str[j]||!/^[\d,]+\.[\d]{2}$/.test(str[j])){i++;continue;}
+      const unitIncl=str[j];j++;
+      if(!str[j]||!/^[\d,]+\.[\d]{2}$/.test(str[j])){i++;continue;}
+      const lineTotal=str[j].replace(/,/g,'');j++;
+      if(!desc.match(/^(Total|Payment|Customer Service|Warranty|Terms)/i))lines.push({code:tok,desc,qty,unitIncl,lineTotal,nc:false});
+      i=j;continue;
+    }
+    i++;
+  }
+  if(lines.length===0){
+    const fb=/([A-Z0-9][A-Z0-9_\-\.]{2,19})\s+([A-Z][^\d\n]{3,50?})\s+(\d{1,2})\s+[\d.]+\s+([\d.]+)\s+([\d.]+)/g;
+    let m;while((m=fb.exec(fullText))!==null){const desc=m[2].trim();if(!desc.match(/^(Total|Payment|Terms|Customer)/i))lines.push({code:m[1],desc,qty:m[3],unitIncl:m[4],lineTotal:m[5],nc:false});}
+  }
+  return lines;
+}
+function parseNotes(text){
+  const m=text.match(/((?:DIAGNOSE|CARRY OUT|NOTE:)[\s\S]{10,600}?)(?=Payment Method:|Our New Bank|ALL CARD|Total includes)/i);
+  if(m)return m[1].replace(/\s+/g,' ').trim().substring(0,500);
+  return '';
+}
+function buildSummary(notes,lines){
+  const n=(notes||'').toUpperCase();
+  const descs=lines.map(l=>l.desc.toUpperCase()).join(' ');
+  const all=n+' '+descs;
+  if(all.includes('TURBO'))return 'Supply & install replacement turbo';
+  if(all.includes('LOG BOOK')||all.includes('LOGBOOK')){
+    const extras=[];
+    if(all.includes('TYRE')||all.includes('TIRE')||all.includes('DUNLOP')||all.includes('BRIDGESTONE')||all.includes('MICHELIN'))extras.push('tyres');
+    if(all.includes('ALIGNMENT'))extras.push('wheel alignment');
+    if(all.includes('BRAKE')&&(all.includes('PAD')||all.includes('ROTOR')))extras.push('brakes');
+    return extras.length?'Log book service + '+extras.join(', '):'Log book service';
+  }
+  if(all.includes('BRAKE')&&(all.includes('PAD')||all.includes('ROTOR')))return 'Brake pads & rotors replacement';
+  if(all.includes('TYRE')||all.includes('TIRE')||all.includes('DUNLOP')||all.includes('BRIDGESTONE'))return 'Tyre replacement';
+  if(all.includes('ALIGNMENT'))return 'Wheel alignment';
+  if(all.includes('OIL'))return 'Oil & filter service';
+  if(all.includes('DIAGNOSE')||all.includes('INSPECT'))return 'Diagnosis & inspection';
+  if(lines.length>0){const d=lines[0].desc;return d.charAt(0).toUpperCase()+d.slice(1).toLowerCase().substring(0,50);}
+  return '';
+}
+
+// ── DELETE ────────────────────────────────────────────────────────────────────
+function deleteInvoice(rego,invNum){
+  if(!confirm('Remove invoice #'+invNum+' from '+rego+'?'))return;
+  S.vehicles[rego].invoices=S.vehicles[rego].invoices.filter(i=>i.invNum!==invNum);
+  if(!S.vehicles[rego].invoices.length){delete S.vehicles[rego];S.sel=null;}
+  scheduleSave();renderList();updateStats();
+  if(S.sel)selectVeh(S.sel);
+  else{document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';}
+}
+function deleteVehicle(rego){
+  if(!confirm('Remove ALL records for '+rego+'?'))return;
+  delete S.vehicles[rego];S.sel=null;
+  scheduleSave();renderList();updateStats();
+  document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';
+}
+function clearAll(){
+  if(!confirm('Clear ALL vehicle and invoice records from OneDrive?\nThis affects everyone using the tracker.'))return;
+  S.vehicles={};S.sel=null;
+  scheduleSave();renderList();updateStats();
+  document.getElementById('es').style.display='flex';
+  document.getElementById('dv').style.display='none';
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+function toggleInv(id){
+  const d=document.getElementById('id-'+id),c=document.getElementById('ch-'+id),h=document.getElementById('hd-'+id);
+  const open=d.classList.contains('open');
+  d.classList.toggle('open',!open);c.classList.toggle('open',!open);h.classList.toggle('open',!open);
+}
+function showToast(msg,type='good'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast '+type+' show';
+  clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.remove('show'),4000);
+}
+function renderList(){
+  const vehs=Object.values(S.vehicles);
+  document.getElementById('vc').textContent=vehs.length+' registered';
+  const el=document.getElementById('vl');
+  if(!vehs.length){el.innerHTML='<div class="veh-empty">No vehicles yet.<br>Upload invoices to begin.</div>';return;}
+  el.innerHTML=vehs.map(v=>{
+    const t=v.invoices.reduce((s,i)=>s+i.total,0);
+    return`<div class="veh-item${S.sel===v.rego?' active':''}" onclick="selectVeh('${v.rego}')">
+      <div style="flex:1;min-width:0;"><div class="veh-rego">${v.rego}</div><div class="veh-model">${v.model}</div></div>
+      <div class="veh-right"><div class="veh-total">$${t.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</div><div class="veh-cnt">${v.invoices.length} inv</div></div>
+    </div>`;
+  }).join('');
+}
+function selectVeh(rego){
+  S.sel=rego;renderList();
+  const v=S.vehicles[rego];
+  document.getElementById('es').style.display='none';
+  const dv=document.getElementById('dv');dv.style.display='block';
+  const tot=v.invoices.reduce((s,i)=>s+i.total,0);
+  const withOdom=[...v.invoices].filter(i=>i.odometer>0).sort((a,b)=>b.odometer-a.odometer);
+  const latestOdom=withOdom.length?withOdom[0]:null;
+  const latestInv=v.invoices[v.invoices.length-1];
+  const single=v.invoices.length===1;
+  dv.innerHTML=`
+    <div class="detail-top">
+      <div><div class="d-rego">${v.rego}</div><div class="d-model">${v.model}</div>${v.vin?`<div class="d-vin">${v.vin}</div>`:''}</div>
+      <div>
+        <div class="d-spend-val">$${tot.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+        <div class="d-spend-lbl">Total spend</div>
+        <div class="d-inv-count">${v.invoices.length} invoice${v.invoices.length!==1?'s':''}</div>
+        <div class="d-delete" onclick="deleteVehicle('${v.rego}')">Remove vehicle</div>
+      </div>
+    </div>
+    <div class="odom-box">
+      <div class="odom-card">
+        <div class="odom-card-lbl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>Odometer at last service</div>
+        <div class="odom-card-val">${latestOdom?latestOdom.odometer.toLocaleString('en-AU')+' km':'—'}</div>
+        <div class="odom-card-sub">${latestOdom?latestOdom.date+' &nbsp;·&nbsp; #'+latestOdom.invNum:'No odometer data'}</div>
+      </div>
+      <div class="odom-card">
+        <div class="odom-card-lbl"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Last service date</div>
+        <div class="odom-card-val">${latestInv?latestInv.date:'—'}</div>
+        <div class="odom-card-sub">${latestInv?latestInv.summary||'Service recorded':'No service recorded'}</div>
+      </div>
+    </div>
+    <div class="sec-lbl">Service Invoices</div>
+    <div class="inv-stack">
+      ${v.invoices.map((inv,idx)=>{
+        const open=single||(idx===v.invoices.length-1);
+        const safe=inv.invNum.replace(/[^a-z0-9]/gi,'_');
+        return`<div class="inv-row">
+          <div class="inv-summary-row${open?' open':''}" id="hd-${safe}" onclick="toggleInv('${safe}')">
+            <span class="inv-num">#${inv.invNum}</span>
+            <span class="inv-date">${inv.date}</span>
+            ${inv.odometer?`<span class="inv-odom"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>${inv.odometer.toLocaleString('en-AU')} km</span>`:''}
+            <span class="inv-pill">$${inv.total.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+            <span class="inv-chev${open?' open':''}" id="ch-${safe}">&#9660;</span>
+          </div>
+          ${inv.summary?`<div class="inv-quick"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 00-1.4 0l-8 8a1 1 0 000 1.4l2 2a1 1 0 001.4 0l8-8a1 1 0 000-1.4l-2-2z"/><path d="M19 19H5"/></svg>${inv.summary}</div>`:''}
+          <div class="inv-detail${open?' open':''}" id="id-${safe}">
+            ${inv.lines.length?`<table class="line-tbl">
+              <colgroup><col style="width:17%"><col style="width:51%"><col style="width:8%"><col style="width:24%"></colgroup>
+              <thead><tr><th>Code</th><th>Description</th><th style="text-align:center">Qty</th><th class="right">Total (GST)</th></tr></thead>
+              <tbody>${inv.lines.map(l=>`<tr>
+                <td class="mono">${l.code}</td>
+                <td>${l.desc.length>54?l.desc.substring(0,54)+'…':l.desc}</td>
+                <td style="text-align:center">${l.qty}</td>
+                <td class="right${l.nc?' nc':''}">${l.nc?'N/C':'$'+parseFloat(l.lineTotal).toLocaleString('en-AU',{minimumFractionDigits:2})}</td>
+              </tr>`).join('')}</tbody>
+            </table>`:`<div style="font-size:12px;color:var(--light);padding:4px 0;font-style:italic;">No line items detected</div>`}
+            ${inv.notes?`<div class="inv-notes">${inv.notes}</div>`:''}
+            <div class="inv-foot">
+              <span>GST <b>$${inv.gst.toFixed(2)}</b></span>
+              <span>Ex GST <b>$${(inv.total-inv.gst).toFixed(2)}</b></span>
+              <span>Incl GST <b>$${inv.total.toFixed(2)}</b></span>
+            </div>
+            <div class="inv-del-row"><button class="inv-del-btn" onclick="deleteInvoice('${v.rego}','${inv.invNum}')">Remove this invoice</button></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+function updateStats(){
+  const vehs=Object.values(S.vehicles);const all=vehs.flatMap(v=>v.invoices);
+  const tot=all.reduce((s,i)=>s+i.total,0);
+  const dates=all.map(i=>i.date).filter(Boolean).sort();
+  document.getElementById('sv').textContent=vehs.length;
+  document.getElementById('si').textContent=all.length;
+  document.getElementById('st').textContent='$'+tot.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0});
+  document.getElementById('sd').textContent=dates.length?dates[dates.length-1]:'—';
+}
+function showProc(show,name=''){
+  document.getElementById('procMsg').textContent='Reading '+name+'…';
+  document.getElementById('procOverlay').classList.toggle('show',show);
+}
+function pad(n){return String(n).padStart(2,'0');}
+function exportXLS(){
+  const vehs=Object.values(S.vehicles);
+  if(!vehs.length){alert('No data to export yet.');return;}
+  const wb=XLSX.utils.book_new();
+  const s1=[['Cold Front Airconditioning — Fleet Maintenance Report'],['Generated:',new Date().toLocaleDateString('en-AU')],[],
+    ['Rego','Vehicle','VIN','Invoices','Last Odometer (km)','Last Service','Total (incl GST)','GST','Ex GST']];
+  vehs.forEach(v=>{
+    const t=v.invoices.reduce((s,i)=>s+i.total,0);const g=v.invoices.reduce((s,i)=>s+i.gst,0);
+    const wo=[...v.invoices].filter(i=>i.odometer>0).sort((a,b)=>b.odometer-a.odometer);
+    s1.push([v.rego,v.model,v.vin,v.invoices.length,wo.length?wo[0].odometer:'',v.invoices.length?v.invoices[v.invoices.length-1].date:'',t,g,t-g]);
+  });
+  s1.push([]);s1.push(['','','','','','Grand Total',vehs.flatMap(v=>v.invoices).reduce((s,i)=>s+i.total,0),'','']);
+  const ws1=XLSX.utils.aoa_to_sheet(s1);ws1['!cols']=[{wch:12},{wch:32},{wch:22},{wch:10},{wch:18},{wch:16},{wch:20},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Summary');
+  const s2=[['Rego','Model','Invoice #','Date','Odometer (km)','Summary','Code','Description','Qty','Unit (GST)','Line Total (GST)','Invoice GST','Invoice Total']];
+  vehs.forEach(v=>{v.invoices.forEach(inv=>{
+    if(inv.lines.length){inv.lines.forEach((l,i)=>{s2.push([v.rego,v.model,inv.invNum,inv.date,i===0?(inv.odometer||''):'',i===0?inv.summary:'',l.code,l.desc,parseInt(l.qty),l.nc?'N/C':parseFloat(l.unitIncl),l.nc?'N/C':parseFloat(l.lineTotal),i===0?inv.gst:'',i===0?inv.total:'']);});}
+    else{s2.push([v.rego,v.model,inv.invNum,inv.date,inv.odometer||'',inv.summary,'','','','','',inv.gst,inv.total]);}
+  });});
+  const ws2=XLSX.utils.aoa_to_sheet(s2);ws2['!cols']=[{wch:10},{wch:28},{wch:12},{wch:14},{wch:14},{wch:30},{wch:16},{wch:40},{wch:6},{wch:14},{wch:16},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Invoice Detail');
+  const now=new Date();
+  XLSX.writeFile(wb,'ColdFront_Fleet_'+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'.xlsx');
+}
+</script>
+</body>
+</html>
