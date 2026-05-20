@@ -12,7 +12,6 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -26,8 +25,6 @@
 html,body{height:100%;background:var(--bg);font-family:var(--sans);color:var(--charcoal);}
 body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48px;}
 .app{width:100%;max-width:1100px;background:var(--white);border:1px solid var(--rule);}
-
-/* HEADER */
 .cf-header{background:#2d2d2d;padding:20px 28px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
 .cf-wordmark{font-size:20px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#fff;text-indent:0.28em;}
 .cf-header-sub{font-size:11px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-top:4px;}
@@ -35,44 +32,23 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .hbtn{font-family:var(--sans);font-size:13px;font-weight:500;padding:8px 16px;cursor:pointer;display:flex;align-items:center;gap:6px;border-radius:2px;border:1.5px solid rgba(255,255,255,0.25);background:transparent;color:#ccc;transition:all 0.12s;}
 .hbtn:hover{color:#fff;border-color:rgba(255,255,255,0.55);background:rgba(255,255,255,0.08);}
 .hbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
-
-/* SYNC BAR */
 .sync-bar{background:#1e1e1e;padding:5px 28px;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,0.45);letter-spacing:0.04em;}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;transition:background 0.3s;}
 .sync-dot.ok{background:var(--ok);}
 .sync-dot.err{background:var(--act);}
 .sync-dot.saving{background:#f59e0b;animation:pulse 0.8s infinite alternate;}
 @keyframes pulse{to{opacity:0.3;}}
-.sync-user{margin-left:auto;font-size:11px;color:rgba(255,255,255,0.35);}
-
-/* LOGIN SCREEN */
-.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;min-height:400px;gap:20px;}
-.login-screen h2{font-size:18px;font-weight:600;color:var(--charcoal);}
-.login-screen p{font-size:14px;color:var(--mid);max-width:400px;line-height:1.6;}
-.login-btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:12px 28px;cursor:pointer;border-radius:2px;border:2px solid var(--charcoal);background:var(--charcoal);color:#fff;transition:all 0.12s;display:flex;align-items:center;gap:8px;}
-.login-btn:hover{background:#444;}
-.login-btn svg{width:18px;height:18px;fill:#fff;}
-.config-note{font-size:12px;color:var(--light);background:var(--bg);border:1px solid var(--rule);border-radius:2px;padding:12px 16px;max-width:460px;text-align:left;line-height:1.7;}
-.config-note b{color:var(--charcoal);}
-.config-note code{font-family:var(--mono);font-size:11px;background:#e8e8e8;padding:1px 5px;border-radius:2px;}
-
-/* TOAST */
 .toast{display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:3px;font-size:13px;font-weight:600;z-index:200;white-space:nowrap;box-shadow:0 2px 12px rgba(0,0,0,0.15);}
 .toast.warn{background:var(--wrn-bg);border:1px solid var(--wrn-border);color:var(--wrn);}
 .toast.good{background:var(--ok-bg);border:1px solid var(--ok-border);color:var(--ok);}
 .toast.err{background:var(--act-bg);border:1px solid var(--act-border);color:var(--act);}
 .toast.show{display:block;}
-
-/* STATS */
 .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule);}
 .stat-cell{padding:14px 20px;border-right:1px solid var(--rule);background:var(--bg);}
 .stat-cell:last-child{border-right:none;}
 .stat-val{font-size:21px;font-weight:700;color:var(--charcoal);}
 .stat-lbl{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-top:3px;}
-
-/* BODY */
 .body{display:grid;grid-template-columns:300px 1fr;min-height:520px;}
-@media(max-width:700px){.body{grid-template-columns:1fr;}.stats-bar{grid-template-columns:1fr 1fr;}}
 .left{border-right:1px solid var(--rule);display:flex;flex-direction:column;background:var(--white);}
 .panel-head{padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;}
 .drop-zone{margin:12px;border:1.5px dashed var(--rule);padding:18px 10px;text-align:center;cursor:pointer;transition:all 0.15s;border-radius:2px;}
@@ -90,8 +66,6 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .veh-right{margin-left:auto;text-align:right;flex-shrink:0;}
 .veh-total{font-size:13px;font-weight:700;}
 .veh-cnt{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--light);margin-top:2px;}
-
-/* RIGHT */
 .right{display:flex;flex-direction:column;background:var(--white);}
 .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--light);gap:12px;padding:40px;text-align:center;}
 .empty-state svg{width:44px;height:44px;stroke:var(--light);fill:none;stroke-width:1.5;opacity:0.3;}
@@ -105,11 +79,10 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .d-spend-lbl{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--light);text-align:right;margin-top:3px;}
 .d-inv-count{font-size:11px;color:var(--light);text-align:right;margin-top:4px;}
 .d-delete{font-size:11px;color:var(--act);cursor:pointer;text-align:right;margin-top:6px;text-decoration:underline;}
-.d-delete:hover{color:#7f0000;}
 .odom-box{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
 .odom-card{background:var(--bg);border:1px solid var(--rule);border-radius:2px;padding:12px 16px;}
 .odom-card-lbl{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--light);margin-bottom:4px;display:flex;align-items:center;gap:5px;}
-.odom-card-lbl svg{width:13px;height:13px;stroke:var(--light);fill:none;stroke-width:2;stroke-linecap:round;}
+.odom-card-lbl svg{width:13px;height:13px;stroke:var(--light);fill:none;stroke-width:2;}
 .odom-card-val{font-size:17px;font-weight:700;font-family:var(--mono);}
 .odom-card-sub{font-size:11px;color:var(--light);margin-top:2px;}
 .sec-lbl{font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:var(--light);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--rule);}
@@ -143,21 +116,29 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .inv-foot b{color:var(--mid);font-weight:600;}
 .inv-del-row{padding:6px 14px 10px;text-align:right;}
 .inv-del-btn{font-size:11px;color:var(--act);cursor:pointer;background:none;border:none;font-family:var(--sans);text-decoration:underline;}
-.inv-del-btn:hover{color:#7f0000;}
-
-/* DATA BAR */
 .data-bar{border-top:1px solid var(--rule);padding:10px 16px;display:flex;align-items:center;gap:8px;background:var(--bg);flex-wrap:wrap;}
 .data-bar-lbl{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-right:4px;}
 .data-btn{font-family:var(--sans);font-size:11px;font-weight:600;padding:5px 12px;cursor:pointer;border-radius:2px;border:1px solid var(--rule);background:var(--white);color:var(--mid);transition:all 0.1s;}
 .data-btn:hover{border-color:var(--charcoal);color:var(--charcoal);}
 .data-btn.danger{border-color:var(--act-border);color:var(--act);}
 .data-btn.danger:hover{background:var(--act-bg);}
-
-/* PROC */
 .proc-overlay{display:none;position:fixed;inset:0;background:rgba(247,247,247,0.92);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:14px;font-weight:500;color:var(--mid);}
 .proc-overlay.show{display:flex;}
 .spinner{width:30px;height:30px;border:3px solid var(--rule);border-top-color:var(--charcoal);border-radius:50%;animation:spin 0.75s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* SETUP SCREEN */
+.setup-screen{padding:40px;max-width:560px;margin:0 auto;}
+.setup-screen h2{font-size:17px;font-weight:600;margin-bottom:8px;}
+.setup-screen p{font-size:13px;color:var(--mid);line-height:1.7;margin-bottom:16px;}
+.setup-field{margin-bottom:14px;}
+.setup-field label{display:block;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:5px;}
+.setup-field input{width:100%;font-family:var(--mono);font-size:13px;padding:8px 12px;border:1px solid var(--rule);border-radius:2px;color:var(--charcoal);}
+.setup-field input:focus{outline:none;border-color:var(--charcoal);}
+.setup-btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:10px 24px;cursor:pointer;border-radius:2px;border:2px solid var(--charcoal);background:var(--charcoal);color:#fff;transition:all 0.12s;margin-top:4px;}
+.setup-btn:hover{background:#444;}
+.setup-note{font-size:11px;color:var(--light);margin-top:16px;padding:12px;background:var(--bg);border:1px solid var(--rule);border-radius:2px;line-height:1.7;}
+.setup-note a{color:var(--charcoal);}
 </style>
 </head>
 <body>
@@ -165,7 +146,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 <div class="toast" id="toast"></div>
 <div class="proc-overlay" id="procOverlay"><div class="spinner"></div><span id="procMsg">Reading invoice…</span></div>
 
-<div class="app" id="app">
+<div class="app">
   <div class="cf-header">
     <div>
       <div class="cf-wordmark">Cold Front</div>
@@ -180,40 +161,36 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
         Export to Excel
       </button>
-      <button class="hbtn" onclick="signOut()">
-        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Sign out
-      </button>
       <input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
     </div>
   </div>
 
   <div class="sync-bar">
     <div class="sync-dot" id="syncDot"></div>
-    <span id="syncLbl">Not signed in</span>
-    <span class="sync-user" id="syncUser"></span>
+    <span id="syncLbl">Not connected</span>
+    <span style="margin-left:auto;font-size:11px;color:rgba(255,255,255,0.3);" id="savedLbl"></span>
   </div>
 
-  <!-- LOGIN SCREEN -->
-  <div class="login-screen" id="loginScreen">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-    <h2>Sign in to access the Fleet Tracker</h2>
-    <p>Uses your Microsoft 365 account to store data securely on OneDrive. No passwords stored — sign in with your existing work account.</p>
-    <button class="login-btn" onclick="signIn()">
-      <svg viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg"><path fill="#f3f3f3" d="M0 0h23v23H0z"/><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
-      Sign in with Microsoft
-    </button>
-    <div class="config-note" id="configNote">
-      <b>First time setup?</b> You need to add your Azure App ID below before signing in.<br><br>
-      App Client ID: <input id="clientIdInput" type="text" placeholder="paste-your-client-id-here" value="ebad459b-f733-4059-9bd0-39a065d3d646"
-        style="font-family:var(--mono);font-size:11px;border:1px solid var(--rule);padding:4px 8px;width:100%;margin-top:4px;border-radius:2px;color:var(--charcoal);"
-        oninput="saveClientId(this.value)">
-      <br><br>
-      See <b>SETUP_GUIDE.txt</b> in this folder for the 5-minute setup instructions.
+  <!-- SETUP SCREEN -->
+  <div id="setupScreen" class="setup-screen">
+    <h2>One-time setup</h2>
+    <p>Click the button below to create your team's shared storage. Takes 2 seconds — no signup, no email, no password.</p>
+    <button class="setup-btn" onclick="createStorage()" id="createBtn">Create shared storage</button>
+    <div id="createStatus" style="margin-top:14px;font-size:13px;color:var(--mid);display:none;"></div>
+    <div style="margin-top:20px;border-top:1px solid var(--rule);padding-top:16px;">
+      <p style="font-size:13px;color:var(--mid);margin-bottom:10px;">Already have a Storage ID? Paste it here to reconnect:</p>
+      <div class="setup-field">
+        <label>Storage ID</label>
+        <input type="text" id="blobIdInput" placeholder="paste Storage ID here" style="font-family:var(--mono);font-size:13px;padding:8px 12px;border:1px solid var(--rule);border-radius:2px;width:100%;">
+      </div>
+      <button class="setup-btn" onclick="connectExisting()" style="background:transparent;color:var(--charcoal);margin-top:0;">Connect</button>
+    </div>
+    <div class="setup-note" style="margin-top:16px;">
+      <b>Sharing with your team?</b> After setup, go to <b>Settings</b> in the tracker to copy your Storage ID. Send that ID to your team — they paste it above and connect to the same shared data instantly.
     </div>
   </div>
 
-  <!-- MAIN APP (hidden until signed in) -->
+  <!-- MAIN APP -->
   <div id="mainApp" style="display:none;">
     <div class="stats-bar">
       <div class="stat-cell"><div class="stat-val" id="sv">0</div><div class="stat-lbl">Vehicles</div></div>
@@ -228,9 +205,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
           <div class="dz-main">&#8679; Drop invoice PDFs here</div>
           <div class="dz-sub">or <span class="dz-link">browse to upload</span></div>
         </div>
-        <div class="veh-list" id="vl">
-          <div class="veh-empty">No vehicles yet.<br>Upload invoices to begin.</div>
-        </div>
+        <div class="veh-list" id="vl"><div class="veh-empty">No vehicles yet.<br>Upload invoices to begin.</div></div>
       </div>
       <div class="right">
         <div class="empty-state" id="es">
@@ -242,8 +217,9 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
     </div>
     <div class="data-bar">
       <span class="data-bar-lbl">Records</span>
+      <button class="data-btn" onclick="copyStorageId()">Copy Storage ID</button>
+      <button class="data-btn" onclick="showSetup()">Change connection</button>
       <button class="data-btn danger" onclick="clearAll()">Clear all records</button>
-      <span style="margin-left:auto;font-size:11px;color:var(--light);" id="savedLbl"></span>
     </div>
   </div>
 </div>
@@ -251,235 +227,126 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+const BLOB_BASE='https://jsonblob.com/api/jsonBlob';
+const S={vehicles:{},sel:null};
+let saveTimer=null;
+let blobId=null;
+
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-// Your Azure App Client ID is stored in localStorage so it persists
-const GRAPH_BASE     = 'https://graph.microsoft.com/v1.0';
-const SCOPES         = ['Files.ReadWrite', 'User.Read', 'Sites.Read.All'];
-const DATA_FILENAME  = 'ColdFront_fleet_data.json';
-const SP_HOSTNAME    = 'oceanairptyltd1.sharepoint.com';
-const SP_SITE_PATH   = '/sites/AAAWORDCOMMON';
-const SP_FOLDER      = 'COLD FRONT/SYSTEMS DASH BOARD/Fleet Manager';
-
-// Cache the drive ID so we don't look it up every save
-let _driveId = null;
-
-async function getSharePointFileUrl(token) {
-  if(!_driveId) {
-    // Look up the SharePoint site
-    const siteR = await fetch(
-      `${GRAPH_BASE}/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`,
-      { headers: { Authorization: 'Bearer ' + token } }
-    );
-    if(!siteR.ok) throw new Error('Cannot reach SharePoint site: ' + siteR.status);
-    const site = await siteR.json();
-
-    // Get the default document library drive
-    const driveR = await fetch(
-      `${GRAPH_BASE}/sites/${site.id}/drive`,
-      { headers: { Authorization: 'Bearer ' + token } }
-    );
-    if(!driveR.ok) throw new Error('Cannot get SharePoint drive: ' + driveR.status);
-    const drive = await driveR.json();
-    _driveId = drive.id;
-  }
-  return {
-    fileUrl: `${GRAPH_BASE}/drives/${_driveId}/root:/${SP_FOLDER}/${DATA_FILENAME}:/content`
-  };
+function loadConfig(){
+  blobId=localStorage.getItem('cf_blobid')||null;
+  if(blobId&&document.getElementById('blobIdInput'))
+    document.getElementById('blobIdInput').value=blobId;
+  return !!blobId;
 }
 
-function getClientId(){ return localStorage.getItem('cf_client_id') || 'ebad459b-f733-4059-9bd0-39a065d3d646'; }
-function saveClientId(v){ localStorage.setItem('cf_client_id',v.trim()); }
-
-// Pre-fill input if already saved
-window.addEventListener('DOMContentLoaded',()=>{
-  const saved = getClientId();
-  if(saved) document.getElementById('clientIdInput').value = saved;
-});
-
-function getMsalApp(){
-  const clientId = getClientId();
-  if(!clientId){
-    showToast('Please enter your Azure App Client ID first.','err');
-    return null;
-  }
-  return new msal.PublicClientApplication({
-    auth:{
-      clientId,
-      authority:'https://login.microsoftonline.com/417a0740-a32c-44da-8b2c-540d46613fb5',
-      redirectUri: 'https://bradtonkin27.github.io/Cold-Front-Vehicle-Fleet-Maintenance-Tracker/'
-    },
-    cache:{ cacheLocation:'localStorage', storeAuthStateInCookie:false }
-  });
-}
-
-// ── AUTH ──────────────────────────────────────────────────────────────────────
-let msalApp = null;
-let currentAccount = null;
-
-async function signIn(){
-  console.log('signIn clicked');
-  const clientId = getClientId();
-  console.log('clientId:', clientId);
-  if(!clientId){
-    showToast('No Client ID found — please paste it in the box.','err');
-    return;
-  }
-  if(!msalApp){
-    msalApp = getMsalApp();
-  }
-  if(!msalApp){
-    showToast('Could not initialise Microsoft login.','err');
-    return;
-  }
+async function createStorage(){
+  const btn=document.getElementById('createBtn');
+  const status=document.getElementById('createStatus');
+  btn.textContent='Creating…';btn.disabled=true;
+  status.style.display='block';
+  status.textContent='Setting up your shared storage…';
   try{
-    console.log('initialising msal...');
-    await msalApp.initialize();
-    console.log('calling loginRedirect...');
-    showToast('Redirecting to Microsoft login…','good');
-    setTimeout(async()=>{
-      await msalApp.loginRedirect({ scopes: SCOPES });
-    }, 500);
+    const r=await fetch(BLOB_BASE,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({})
+    });
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const loc=r.headers.get('Location')||'';
+    const id=loc.split('/').pop();
+    if(!id)throw new Error('No ID returned');
+    blobId=id;
+    localStorage.setItem('cf_blobid',id);
+    status.innerHTML='<b style="color:var(--ok)">✓ Storage created!</b> Your Storage ID: <code style="font-family:var(--mono);background:#eee;padding:2px 6px;border-radius:2px;">'+id+'</code><br><br>Save this ID somewhere — share it with your team so they can connect to the same data.';
+    setTimeout(startApp,1800);
   }catch(e){
-    console.error('signIn error:', e);
-    showToast('Sign in error: '+e.message,'err');
+    status.textContent='Could not create storage: '+e.message+'. Please try refreshing the page.';
+    btn.textContent='Create shared storage';btn.disabled=false;
+    console.error(e);
   }
 }
 
-async function signOut(){
-  if(!msalApp || !currentAccount) return;
-  await msalApp.logoutRedirect({ account: currentAccount });
+function connectExisting(){
+  const id=document.getElementById('blobIdInput').value.trim();
+  if(!id){showToast('Please paste a Storage ID first.','warn');return;}
+  blobId=id;
+  localStorage.setItem('cf_blobid',id);
+  startApp();
 }
 
-async function getToken(){
-  if(!msalApp || !currentAccount) return null;
-  try{
-    const r = await msalApp.acquireTokenSilent({ scopes: SCOPES, account: currentAccount });
-    return r.accessToken;
-  }catch(e){
-    try{
-      await msalApp.acquireTokenRedirect({ scopes: SCOPES, account: currentAccount });
-      return null;
-    }catch(e2){ return null; }
-  }
-}
-
-async function onSignedIn(){
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('mainApp').style.display='block';
-  document.getElementById('headerBtns').style.display='flex';
-  document.getElementById('syncUser').textContent = currentAccount.username;
-  setSyncStatus('saving','Loading data from OneDrive…');
-  await loadFromOneDrive();
-  // Poll for changes every 30s
-  setInterval(pollChanges, 30000);
-}
-
-function showLoginScreen(){
-  document.getElementById('loginScreen').style.display='flex';
+function showSetup(){
+  document.getElementById('setupScreen').style.display='block';
   document.getElementById('mainApp').style.display='none';
   document.getElementById('headerBtns').style.display='none';
-  document.getElementById('syncUser').textContent='';
-  setSyncStatus('','Not signed in');
 }
 
-// Handle redirect response and silent sign-in on page load
-window.addEventListener('DOMContentLoaded', async()=>{
-  const clientId = getClientId();
-  if(!clientId) return;
-  msalApp = getMsalApp();
-  if(!msalApp) return;
-  try{
-    await msalApp.initialize();
-    // Handle redirect response first (coming back from Microsoft login)
-    const response = await msalApp.handleRedirectPromise();
-    if(response && response.account){
-      currentAccount = response.account;
-      await onSignedIn();
-      return;
-    }
-    // Check if already signed in
-    const accounts = msalApp.getAllAccounts();
-    if(accounts.length > 0){
-      currentAccount = accounts[0];
-      await onSignedIn();
-    }
-  }catch(e){
-    console.error('Init error:', e);
-  }
-});
+function startApp(){
+  document.getElementById('setupScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+  document.getElementById('headerBtns').style.display='flex';
+  loadFromBlob();
+  setInterval(pollChanges,30000);
+}
 
-// ── ONEDRIVE API ──────────────────────────────────────────────────────────────
+// ── JSONBLOB STORAGE ──────────────────────────────────────────────────────────
 function setSyncStatus(state,msg){
   document.getElementById('syncDot').className='sync-dot '+(state||'');
   document.getElementById('syncLbl').textContent=msg;
 }
 
-async function loadFromOneDrive(){
-  const token = await getToken();
-  if(!token){ setSyncStatus('err','Could not get access token'); return; }
+async function loadFromBlob(){
+  if(!blobId)return;
+  setSyncStatus('saving','Loading shared data…');
   try{
-    setSyncStatus('saving','Loading data…');
-    const { fileUrl } = await getSharePointFileUrl(token);
-    const r = await fetch(fileUrl,{
-      headers:{ Authorization:'Bearer '+token }
+    const r=await fetch(BLOB_BASE+'/'+blobId,{
+      headers:{'Accept':'application/json'}
     });
-    if(r.status === 404){
-      setSyncStatus('ok','Connected · No data yet — upload your first invoice');
-      return;
-    }
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const data = await r.json();
-    Object.assign(S.vehicles, data);
-    renderList(); updateStats();
-    const count = Object.keys(S.vehicles).length;
+    if(r.status===404){setSyncStatus('ok','Connected · No data yet — upload your first invoice');return;}
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    Object.assign(S.vehicles,data);
+    renderList();updateStats();
+    const count=Object.keys(S.vehicles).length;
     setSyncStatus('ok','Connected · '+count+' vehicle'+(count!==1?'s':'')+' loaded');
   }catch(e){
-    setSyncStatus('err','Could not load data: '+e.message);
+    setSyncStatus('err','Could not load: '+e.message);
     showToast('Could not load data: '+e.message,'err');
-    console.error('Load error:', e);
+    console.error(e);
   }
 }
 
-let saveTimer = null;
-function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveToOneDrive, 800); }
+function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveToBlob,800);}
 
-async function saveToOneDrive(){
-  const token = await getToken();
-  if(!token){ setSyncStatus('err','Could not get access token'); return; }
-  setSyncStatus('saving','Saving to SharePoint…');
+async function saveToBlob(){
+  if(!blobId)return;
+  setSyncStatus('saving','Saving…');
   try{
-    const { fileUrl } = await getSharePointFileUrl(token);
-    const body = JSON.stringify(S.vehicles, null, 2);
-    const r = await fetch(fileUrl,{
+    const r=await fetch(BLOB_BASE+'/'+blobId,{
       method:'PUT',
-      headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-      body
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(S.vehicles)
     });
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const count = Object.keys(S.vehicles).length;
-    const t = new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-    setSyncStatus('ok','Saved to SharePoint · '+t);
-    document.getElementById('savedLbl').textContent='Last saved '+t;
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const t=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+    setSyncStatus('ok','Saved · '+t);
+    document.getElementById('savedLbl').textContent='Saved '+t+' · ID: '+blobId;
   }catch(e){
     setSyncStatus('err','Save failed: '+e.message);
-    showToast('SharePoint save failed: '+e.message,'err');
-    console.error('Save error:', e);
+    showToast('Save failed: '+e.message,'err');
+    console.error(e);
   }
 }
 
 async function pollChanges(){
-  const token = await getToken();
-  if(!token) return;
+  if(!blobId)return;
   try{
-    const { fileUrl } = await getSharePointFileUrl(token);
-    const r = await fetch(fileUrl,{
-      headers:{ Authorization:'Bearer '+token }
-    });
-    if(!r.ok) return;
-    const fresh = await r.json();
-    let changed = false;
+    const r=await fetch(BLOB_BASE+'/'+blobId,{headers:{'Accept':'application/json'}});
+    if(!r.ok)return;
+    const fresh=await r.json();
+    let changed=false;
     Object.keys(fresh).forEach(rego=>{
-      if(!S.vehicles[rego]){ S.vehicles[rego]=fresh[rego]; changed=true; }
+      if(!S.vehicles[rego]){S.vehicles[rego]=fresh[rego];changed=true;}
       else{
         fresh[rego].invoices.forEach(inv=>{
           if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
@@ -490,12 +357,9 @@ async function pollChanges(){
         });
       }
     });
-    if(changed){ renderList(); updateStats(); if(S.sel) selectVeh(S.sel); }
+    if(changed){renderList();updateStats();if(S.sel)selectVeh(S.sel);}
   }catch(e){}
 }
-
-// ── STATE ─────────────────────────────────────────────────────────────────────
-const S={vehicles:{},sel:null};
 
 // ── PDF PROCESSING ────────────────────────────────────────────────────────────
 const dz=document.getElementById('dz');
@@ -505,7 +369,7 @@ dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');ha
 function handleFiles(files){
   const pdfs=Array.from(files).filter(f=>f.name.toLowerCase().endsWith('.pdf'));
   if(!pdfs.length)return;
-  (async()=>{for(const f of pdfs) await readPdf(f);})();
+  (async()=>{for(const f of pdfs)await readPdf(f);})();
 }
 async function readPdf(file){
   showProc(true,file.name);
@@ -611,8 +475,6 @@ function buildSummary(notes,lines){
   if(lines.length>0){const d=lines[0].desc;return d.charAt(0).toUpperCase()+d.slice(1).toLowerCase().substring(0,50);}
   return '';
 }
-
-// ── DELETE ────────────────────────────────────────────────────────────────────
 function deleteInvoice(rego,invNum){
   if(!confirm('Remove invoice #'+invNum+' from '+rego+'?'))return;
   S.vehicles[rego].invoices=S.vehicles[rego].invoices.filter(i=>i.invNum!==invNum);
@@ -628,14 +490,11 @@ function deleteVehicle(rego){
   document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';
 }
 function clearAll(){
-  if(!confirm('Clear ALL vehicle and invoice records from OneDrive?\nThis affects everyone using the tracker.'))return;
+  if(!confirm('Clear ALL vehicle and invoice records?\nThis affects everyone using the tracker.'))return;
   S.vehicles={};S.sel=null;
   scheduleSave();renderList();updateStats();
-  document.getElementById('es').style.display='flex';
-  document.getElementById('dv').style.display='none';
+  document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';
 }
-
-// ── UI ────────────────────────────────────────────────────────────────────────
 function toggleInv(id){
   const d=document.getElementById('id-'+id),c=document.getElementById('ch-'+id),h=document.getElementById('hd-'+id);
   const open=d.classList.contains('open');
@@ -766,6 +625,21 @@ function exportXLS(){
   const now=new Date();
   XLSX.writeFile(wb,'ColdFront_Fleet_'+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'.xlsx');
 }
+
+function copyStorageId(){
+  if(!blobId){showToast('Not connected yet.','warn');return;}
+  navigator.clipboard.writeText(blobId).then(()=>{
+    showToast('Storage ID copied — share this with your team!','good');
+  }).catch(()=>{
+    prompt('Copy this Storage ID and share it with your team:',blobId);
+  });
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded',()=>{
+  if(loadConfig()) startApp();
+  // Show Storage ID in data bar if connected
+});
 </script>
 </body>
 </html>
