@@ -222,10 +222,27 @@ const CLIENT_ID   = 'ebad459b-f733-4059-9bd0-39a065d3d646';
 const TENANT_ID   = '417a0740-a32c-44da-8b2c-540d46613fb5';
 const REDIRECT    = 'https://bradtonkin27.github.io/Cold-Front-Vehicle-Fleet-Maintenance-Tracker/';
 const GRAPH_BASE  = 'https://graph.microsoft.com/v1.0';
-const SCOPES      = ['Files.ReadWrite','User.Read'];
-// Shared Excel file via encoded share link
-const SHARE_ID    = 'u!aHR0cHM6Ly9vY2VhbmFpcnB0eWx0ZDEuc2hhcmVwb2ludC5jb20vOng6L3MvQUFBV09SRENPTU1PTi9JUUQxTlNCY1J0S3NTYk40WkxuTk1JTnBBVXBkU3dBcjFab0NSaGFRVlA4RkNfYz9lPVN3cjZtcA';
-const FILE_URL    = `${GRAPH_BASE}/shares/${SHARE_ID}/driveItem`;
+const SCOPES      = ['Files.ReadWrite','User.Read','Sites.Read.All'];
+const SP_HOST     = 'oceanairptyltd1.sharepoint.com';
+const SP_SITE     = '/sites/AAAWORDCOMMON';
+const SP_FOLDER   = 'COLD FRONT/SYSTEMS DASH BOARD/Fleet Manager';
+const DATA_FILE   = 'ColdFront_fleet_data.json';
+let _driveId      = null;
+
+async function getDriveFileUrl(token){
+  if(!_driveId){
+    const sr=await fetch(`${GRAPH_BASE}/sites/${SP_HOST}:${SP_SITE}`,
+      {headers:{Authorization:'Bearer '+token}});
+    if(!sr.ok)throw new Error('Site lookup failed: '+sr.status);
+    const site=await sr.json();
+    const dr=await fetch(`${GRAPH_BASE}/sites/${site.id}/drive`,
+      {headers:{Authorization:'Bearer '+token}});
+    if(!dr.ok)throw new Error('Drive lookup failed: '+dr.status);
+    const drive=await dr.json();
+    _driveId=drive.id;
+  }
+  return `${GRAPH_BASE}/drives/${_driveId}/root:/${SP_FOLDER}/${DATA_FILE}:/content`;
+}
 
 const S={vehicles:{},sel:null};
 let msalApp=null,account=null,saveTimer=null;
@@ -272,161 +289,6 @@ function setSyncStatus(state,msg){
   document.getElementById('syncLbl').textContent=msg;
 }
 
-async function getFileIds(token){
-  // Get the driveId and itemId from the share link
-  const r=await fetch(FILE_URL,{headers:{Authorization:'Bearer '+token}});
-  if(!r.ok)throw new Error('Cannot access shared file: HTTP '+r.status+'. Make sure the Excel file is shared with your team.');
-  const item=await r.json();
-  return{driveId:item.parentReference.driveId,itemId:item.id};
-}
-
-async function loadData(){
-  const token=await getToken();
-  if(!token)return;
-  setSyncStatus('saving','Loading from OneDrive…');
-  try{
-    const{driveId,itemId}=await getFileIds(token);
-    // Read the worksheet named "FleetData"
-    const r=await fetch(
-      `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets/FleetData/usedRange`,
-      {headers:{Authorization:'Bearer '+token}}
-    );
-    if(r.status===404||r.status===400){
-      // Sheet doesn't exist yet — create it on first save
-      setSyncStatus('ok','Connected · No data yet — upload your first invoice');
-      return;
-    }
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const sheet=await r.json();
-    const rows=sheet.values||[];
-    if(rows.length<2){setSyncStatus('ok','Connected · No data yet');return;}
-    // Parse rows back into vehicle/invoice structure
-    // Row 0 = headers, rows 1+ = data
-    const data={};
-    for(let i=1;i<rows.length;i++){
-      const row=rows[i];
-      if(!row[0])continue;
-      const rego=row[0],model=row[1],vin=row[2];
-      if(!data[rego])data[rego]={rego,model,vin,invoices:[]};
-      if(!row[3])continue; // no invoice data on this row
-      const inv={
-        invNum:String(row[3]),date:row[4],odometer:row[5]||0,
-        summary:row[6],total:parseFloat(row[7])||0,gst:parseFloat(row[8])||0,
-        lines:[],notes:row[9]||''
-      };
-      // Parse line items from JSON stored in col 10
-      try{if(row[10])inv.lines=JSON.parse(row[10]);}catch(e){}
-      if(!data[rego].invoices.find(x=>x.invNum===inv.invNum))
-        data[rego].invoices.push(inv);
-    }
-    Object.keys(data).forEach(r=>{
-      data[r].invoices.sort((a,b)=>a.date.localeCompare(b.date));
-    });
-    Object.assign(S.vehicles,data);
-    renderList();updateStats();
-    const count=Object.keys(S.vehicles).length;
-    setSyncStatus('ok','Connected · '+count+' vehicle'+(count!==1?'s':'')+' loaded');
-  }catch(e){
-    setSyncStatus('err',e.message);
-    showToast(e.message,'err');
-    console.error(e);
-  }
-}
-
-function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveData,800);}
-
-async function saveData(){
-  const token=await getToken();
-  if(!token)return;
-  setSyncStatus('saving','Saving to OneDrive…');
-  try{
-    const{driveId,itemId}=await getFileIds(token);
-    // Build rows: headers + one row per invoice
-    const headers=['Rego','Model','VIN','Invoice #','Date','Odometer','Summary','Total (incl GST)','GST','Notes','Line Items (JSON)'];
-    const rows=[headers];
-    Object.values(S.vehicles).forEach(v=>{
-      v.invoices.forEach(inv=>{
-        rows.push([
-          v.rego,v.model,v.vin||'',
-          inv.invNum,inv.date,inv.odometer||0,
-          inv.summary||'',inv.total,inv.gst,
-          inv.notes||'',
-          JSON.stringify(inv.lines||[])
-        ]);
-      });
-    });
-    // Ensure worksheet exists then write
-    await ensureSheet(token,driveId,itemId);
-    const r=await fetch(
-      `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets/FleetData/range(address='A1:K${rows.length}')`,
-      {
-        method:'PATCH',
-        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-        body:JSON.stringify({values:rows})
-      }
-    );
-    if(!r.ok){const t=await r.text();throw new Error('Save failed: '+r.status+' '+t);}
-    const ts=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-    setSyncStatus('ok','Saved to OneDrive · '+ts);
-    document.getElementById('savedLbl').textContent='Last saved '+ts;
-  }catch(e){
-    setSyncStatus('err','Save failed: '+e.message);
-    showToast('Save failed: '+e.message,'err');
-    console.error(e);
-  }
-}
-
-async function ensureSheet(token,driveId,itemId){
-  // Check if FleetData sheet exists
-  const r=await fetch(
-    `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets`,
-    {headers:{Authorization:'Bearer '+token}}
-  );
-  const data=await r.json();
-  const sheets=(data.value||[]).map(s=>s.name);
-  if(!sheets.includes('FleetData')){
-    await fetch(
-      `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets/add`,
-      {
-        method:'POST',
-        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-        body:JSON.stringify({name:'FleetData'})
-      }
-    );
-  }
-}
-
-async function pollChanges(){
-  const token=await getToken();
-  if(!token)return;
-  try{
-    const{driveId,itemId}=await getFileIds(token);
-    const r=await fetch(
-      `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets/FleetData/usedRange`,
-      {headers:{Authorization:'Bearer '+token}}
-    );
-    if(!r.ok)return;
-    const sheet=await r.json();
-    const rows=sheet.values||[];
-    if(rows.length<2)return;
-    let changed=false;
-    for(let i=1;i<rows.length;i++){
-      const row=rows[i];
-      if(!row[0]||!row[3])continue;
-      const rego=row[0];
-      if(!S.vehicles[rego])S.vehicles[rego]={rego,model:row[1],vin:row[2],invoices:[]};
-      const invNum=String(row[3]);
-      if(!S.vehicles[rego].invoices.find(x=>x.invNum===invNum)){
-        const inv={invNum,date:row[4],odometer:row[5]||0,summary:row[6],
-          total:parseFloat(row[7])||0,gst:parseFloat(row[8])||0,notes:row[9]||'',lines:[]};
-        try{if(row[10])inv.lines=JSON.parse(row[10]);}catch(e){}
-        S.vehicles[rego].invoices.push(inv);
-        S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
-        changed=true;
-      }
-    }
-    if(changed){renderList();updateStats();if(S.sel)selectVeh(S.sel);}
-  }catch(e){}
 }
 
 // ── PDF PROCESSING ────────────────────────────────────────────────────────────
