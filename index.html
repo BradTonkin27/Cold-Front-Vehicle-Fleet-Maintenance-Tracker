@@ -12,7 +12,6 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -26,6 +25,7 @@
 html,body{height:100%;background:var(--bg);font-family:var(--sans);color:var(--charcoal);}
 body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48px;}
 .app{width:100%;max-width:1100px;background:var(--white);border:1px solid var(--rule);}
+
 .cf-header{background:#2d2d2d;padding:20px 28px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
 .cf-wordmark{font-size:20px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#fff;text-indent:0.28em;}
 .cf-header-sub{font-size:11px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-top:4px;}
@@ -33,29 +33,29 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .hbtn{font-family:var(--sans);font-size:13px;font-weight:500;padding:8px 16px;cursor:pointer;display:flex;align-items:center;gap:6px;border-radius:2px;border:1.5px solid rgba(255,255,255,0.25);background:transparent;color:#ccc;transition:all 0.12s;}
 .hbtn:hover{color:#fff;border-color:rgba(255,255,255,0.55);background:rgba(255,255,255,0.08);}
 .hbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
-.sync-bar{background:#1e1e1e;padding:5px 28px;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,0.45);letter-spacing:0.04em;}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;transition:background 0.3s;}
+
+.sync-bar{background:#1e1e1e;padding:6px 28px;display:flex;align-items:center;gap:10px;font-size:11px;color:rgba(255,255,255,0.5);flex-wrap:wrap;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;}
 .sync-dot.ok{background:var(--ok);}
+.sync-dot.wrn{background:#f59e0b;}
 .sync-dot.err{background:var(--act);}
-.sync-dot.saving{background:#f59e0b;animation:pulse 0.8s infinite alternate;}
-@keyframes pulse{to{opacity:0.3;}}
-.sync-user{margin-left:auto;font-size:11px;color:rgba(255,255,255,0.3);}
+.sync-actions{margin-left:auto;display:flex;gap:6px;}
+.sync-btn{font-family:var(--sans);font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;border-radius:2px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.6);transition:all 0.12s;}
+.sync-btn:hover{border-color:rgba(255,255,255,0.5);color:#fff;}
+.sync-btn.primary{border-color:rgba(255,255,255,0.4);color:#fff;}
+
 .toast{display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:3px;font-size:13px;font-weight:600;z-index:200;white-space:nowrap;box-shadow:0 2px 12px rgba(0,0,0,0.15);}
 .toast.warn{background:var(--wrn-bg);border:1px solid var(--wrn-border);color:var(--wrn);}
 .toast.good{background:var(--ok-bg);border:1px solid var(--ok-border);color:var(--ok);}
 .toast.err{background:var(--act-bg);border:1px solid var(--act-border);color:var(--act);}
 .toast.show{display:block;}
-.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;min-height:380px;gap:18px;}
-.login-screen h2{font-size:18px;font-weight:600;}
-.login-screen p{font-size:14px;color:var(--mid);max-width:380px;line-height:1.6;}
-.login-btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:12px 28px;cursor:pointer;border-radius:2px;border:2px solid var(--charcoal);background:var(--charcoal);color:#fff;display:flex;align-items:center;gap:8px;transition:all 0.12s;}
-.login-btn:hover{background:#444;}
-.login-btn svg{width:20px;height:20px;}
+
 .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule);}
 .stat-cell{padding:14px 20px;border-right:1px solid var(--rule);background:var(--bg);}
 .stat-cell:last-child{border-right:none;}
 .stat-val{font-size:21px;font-weight:700;color:var(--charcoal);}
 .stat-lbl{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-top:3px;}
+
 .body{display:grid;grid-template-columns:300px 1fr;min-height:520px;}
 .left{border-right:1px solid var(--rule);display:flex;flex-direction:column;background:var(--white);}
 .panel-head{padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;}
@@ -74,6 +74,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .veh-right{margin-left:auto;text-align:right;flex-shrink:0;}
 .veh-total{font-size:13px;font-weight:700;}
 .veh-cnt{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--light);margin-top:2px;}
+
 .right{display:flex;flex-direction:column;background:var(--white);}
 .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--light);gap:12px;padding:40px;text-align:center;}
 .empty-state svg{width:44px;height:44px;stroke:var(--light);fill:none;stroke-width:1.5;opacity:0.3;}
@@ -124,12 +125,14 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .inv-foot b{color:var(--mid);font-weight:600;}
 .inv-del-row{padding:6px 14px 10px;text-align:right;}
 .inv-del-btn{font-size:11px;color:var(--act);cursor:pointer;background:none;border:none;font-family:var(--sans);text-decoration:underline;}
+
 .data-bar{border-top:1px solid var(--rule);padding:10px 16px;display:flex;align-items:center;gap:8px;background:var(--bg);flex-wrap:wrap;}
 .data-bar-lbl{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-right:4px;}
 .data-btn{font-family:var(--sans);font-size:11px;font-weight:600;padding:5px 12px;cursor:pointer;border-radius:2px;border:1px solid var(--rule);background:var(--white);color:var(--mid);transition:all 0.1s;}
 .data-btn:hover{border-color:var(--charcoal);color:var(--charcoal);}
 .data-btn.danger{border-color:var(--act-border);color:var(--act);}
 .data-btn.danger:hover{background:var(--act-bg);}
+
 .proc-overlay{display:none;position:fixed;inset:0;background:rgba(247,247,247,0.92);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:14px;font-weight:500;color:var(--mid);}
 .proc-overlay.show{display:flex;}
 .spinner{width:30px;height:30px;border:3px solid var(--rule);border-top-color:var(--charcoal);border-radius:50%;animation:spin 0.75s linear infinite;}
@@ -139,6 +142,8 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 <body>
 <div class="toast" id="toast"></div>
 <div class="proc-overlay" id="procOverlay"><div class="spinner"></div><span id="procMsg">Reading invoice…</span></div>
+<input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
+<input type="file" id="importJson" accept=".json" style="display:none" onchange="importSync(this)">
 
 <div class="app">
   <div class="cf-header">
@@ -146,7 +151,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
       <div class="cf-wordmark">Cold Front</div>
       <div class="cf-header-sub">Fleet Maintenance Tracker</div>
     </div>
-    <div class="cf-header-right" id="headerBtns" style="display:none;">
+    <div class="cf-header-right">
       <button class="hbtn" onclick="document.getElementById('fi').click()">
         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Upload Invoices
@@ -155,162 +160,131 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
         Export to Excel
       </button>
-      <button class="hbtn" onclick="signOut()">
-        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Sign out
-      </button>
-      <input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
     </div>
   </div>
 
   <div class="sync-bar">
-    <div class="sync-dot" id="syncDot"></div>
-    <span id="syncLbl">Not signed in</span>
-    <span class="sync-user" id="syncUser"></span>
+    <div class="sync-dot ok" id="syncDot"></div>
+    <span id="syncLbl">Ready</span>
+    <div class="sync-actions">
+      <button class="sync-btn primary" onclick="exportSync()" title="Save a JSON backup to share with your team">
+        &#8679; Save &amp; Share
+      </button>
+      <button class="sync-btn" onclick="document.getElementById('importJson').click()" title="Load a JSON backup from your team">
+        &#8681; Load from team
+      </button>
+    </div>
   </div>
 
-  <div class="login-screen" id="loginScreen">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
-      <rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/>
-      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-    </svg>
-    <h2>Sign in to access the Fleet Tracker</h2>
-    <p>Uses your Ocean Air Microsoft account. Data saves automatically to a shared Excel file on OneDrive.</p>
-    <button class="login-btn" onclick="signIn()">
-      <svg viewBox="0 0 23 23"><path fill="#f3f3f3" d="M0 0h23v23H0z"/><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
-      Sign in with Microsoft
-    </button>
+  <div class="stats-bar">
+    <div class="stat-cell"><div class="stat-val" id="sv">0</div><div class="stat-lbl">Vehicles</div></div>
+    <div class="stat-cell"><div class="stat-val" id="si">0</div><div class="stat-lbl">Invoices</div></div>
+    <div class="stat-cell"><div class="stat-val" id="st">$0</div><div class="stat-lbl">Total Spend</div></div>
+    <div class="stat-cell"><div class="stat-val" id="sd">—</div><div class="stat-lbl">Latest Service</div></div>
   </div>
 
-  <div id="mainApp" style="display:none;">
-    <div class="stats-bar">
-      <div class="stat-cell"><div class="stat-val" id="sv">0</div><div class="stat-lbl">Vehicles</div></div>
-      <div class="stat-cell"><div class="stat-val" id="si">0</div><div class="stat-lbl">Invoices</div></div>
-      <div class="stat-cell"><div class="stat-val" id="st">$0</div><div class="stat-lbl">Total Spend</div></div>
-      <div class="stat-cell"><div class="stat-val" id="sd">—</div><div class="stat-lbl">Latest Service</div></div>
-    </div>
-    <div class="body">
-      <div class="left">
-        <div class="panel-head"><span>Vehicles</span><span id="vc">0 registered</span></div>
-        <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
-          <div class="dz-main">&#8679; Drop invoice PDFs here</div>
-          <div class="dz-sub">or <span class="dz-link">browse to upload</span></div>
-        </div>
-        <div class="veh-list" id="vl"><div class="veh-empty">No vehicles yet.<br>Upload invoices to begin.</div></div>
+  <div class="body">
+    <div class="left">
+      <div class="panel-head"><span>Vehicles</span><span id="vc">0 registered</span></div>
+      <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
+        <div class="dz-main">&#8679; Drop invoice PDFs here</div>
+        <div class="dz-sub">or <span class="dz-link">browse to upload</span></div>
       </div>
-      <div class="right">
-        <div class="empty-state" id="es">
-          <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-          <p>Select a vehicle to view<br>its service history</p>
-        </div>
-        <div class="detail" id="dv" style="display:none;"></div>
+      <div class="veh-list" id="vl">
+        <div class="veh-empty">No vehicles yet.<br>Upload invoices to begin.</div>
       </div>
     </div>
-    <div class="data-bar">
-      <span class="data-bar-lbl">Records</span>
-      <button class="data-btn danger" onclick="clearAll()">Clear all records</button>
-      <span style="margin-left:auto;font-size:11px;color:var(--light);" id="savedLbl"></span>
+    <div class="right">
+      <div class="empty-state" id="es">
+        <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        <p>Select a vehicle to view<br>its service history</p>
+      </div>
+      <div class="detail" id="dv" style="display:none;"></div>
     </div>
+  </div>
+
+  <div class="data-bar">
+    <span class="data-bar-lbl">Records</span>
+    <button class="data-btn danger" onclick="clearAll()">Clear all records</button>
+    <span style="margin-left:auto;font-size:11px;color:var(--light);" id="savedLbl"></span>
   </div>
 </div>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// ── CONSTANTS ─────────────────────────────────────────────────────────────────
-const CLIENT_ID   = 'ebad459b-f733-4059-9bd0-39a065d3d646';
-const TENANT_ID   = '417a0740-a32c-44da-8b2c-540d46613fb5';
-const REDIRECT    = 'https://bradtonkin27.github.io/Cold-Front-Vehicle-Fleet-Maintenance-Tracker/';
-const GRAPH_BASE  = 'https://graph.microsoft.com/v1.0';
-const SCOPES      = ['Files.ReadWrite','User.Read','Sites.Read.All'];
-const SP_HOST     = 'oceanairptyltd1.sharepoint.com';
-const SP_SITE     = '/sites/AAAWORDCOMMON';
-const SP_FOLDER   = 'COLD FRONT/SYSTEMS DASH BOARD/Fleet Manager';
-const DATA_FILE   = 'ColdFront_fleet_data.json';
-let _driveId      = null;
-
-async function getDriveFileUrl(token){
-  if(!_driveId){
-    const sr=await fetch(`${GRAPH_BASE}/sites/${SP_HOST}:${SP_SITE}`,
-      {headers:{Authorization:'Bearer '+token}});
-    if(!sr.ok)throw new Error('Site lookup failed: '+sr.status);
-    const site=await sr.json();
-    const dr=await fetch(`${GRAPH_BASE}/sites/${site.id}/drive`,
-      {headers:{Authorization:'Bearer '+token}});
-    if(!dr.ok)throw new Error('Drive lookup failed: '+dr.status);
-    const drive=await dr.json();
-    _driveId=drive.id;
-  }
-  return `${GRAPH_BASE}/drives/${_driveId}/root:/${SP_FOLDER}/${DATA_FILE}:/content`;
-}
-
 const S={vehicles:{},sel:null};
-let msalApp=null,account=null,saveTimer=null;
+const STORE_KEY='cf_fleet_v1';
 
-// ── MSAL AUTH ─────────────────────────────────────────────────────────────────
-msalApp=new msal.PublicClientApplication({
-  auth:{clientId:CLIENT_ID,authority:`https://login.microsoftonline.com/${TENANT_ID}`,redirectUri:REDIRECT},
-  cache:{cacheLocation:'localStorage',storeAuthStateInCookie:false}
-});
-
-async function signIn(){
+// ── LOCAL STORAGE ─────────────────────────────────────────────────────────────
+function saveLocal(){
   try{
-    setSyncStatus('saving','Signing in…');
-    document.getElementById('syncLbl').textContent='Redirecting to Microsoft…';
-    await msalApp.initialize();
-    await msalApp.loginRedirect({scopes:SCOPES});
-  }catch(e){
-    console.error('signIn error',e);
-    setSyncStatus('err','Sign in error: '+e.message);
-    // Show error prominently on page
-    const ls=document.getElementById('loginScreen');
-    let errDiv=document.getElementById('loginErr');
-    if(!errDiv){errDiv=document.createElement('div');errDiv.id='loginErr';errDiv.style.cssText='color:#b71c1c;background:#ffcdd2;border:1px solid #ef9a9a;padding:10px 16px;border-radius:2px;font-size:13px;max-width:400px;text-align:left;';ls.appendChild(errDiv);}
-    errDiv.textContent='Error: '+e.message+(e.errorCode?' ('+e.errorCode+')':'');
-  }
+    localStorage.setItem(STORE_KEY,JSON.stringify(S.vehicles));
+    const t=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('savedLbl').textContent='Saved locally · '+t;
+  }catch(e){console.warn('Local save failed',e);}
 }
 
-async function signOut(){
-  await msalApp.logoutRedirect({account});
-}
-
-async function getToken(){
+function loadLocal(){
   try{
-    const r=await msalApp.acquireTokenSilent({scopes:SCOPES,account});
-    return r.accessToken;
-  }catch(e){
-    await msalApp.acquireTokenRedirect({scopes:SCOPES,account});
-    return null;
-  }
+    const raw=localStorage.getItem(STORE_KEY);
+    if(raw){Object.assign(S.vehicles,JSON.parse(raw));renderList();updateStats();}
+  }catch(e){console.warn('Local load failed',e);}
 }
 
-async function onSignedIn(){
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('mainApp').style.display='block';
-  document.getElementById('headerBtns').style.display='flex';
-  document.getElementById('syncUser').textContent=account.username;
-  await loadData();
-  setInterval(pollChanges,30000);
+// ── JSON SYNC (share via SharePoint/OneDrive folder) ──────────────────────────
+function exportSync(){
+  const blob=new Blob([JSON.stringify(S.vehicles,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  const d=new Date();
+  a.download='ColdFront_fleet_data.json';
+  a.href=URL.createObjectURL(blob);
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Saved! Upload ColdFront_fleet_data.json to your shared SharePoint folder so your team can load it.','good');
 }
 
-// ── ONEDRIVE EXCEL STORAGE ────────────────────────────────────────────────────
-function setSyncStatus(state,msg){
-  document.getElementById('syncDot').className='sync-dot '+(state||'');
-  document.getElementById('syncLbl').textContent=msg;
+function importSync(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const fresh=JSON.parse(e.target.result);
+      let added=0;
+      Object.keys(fresh).forEach(rego=>{
+        if(!S.vehicles[rego]){S.vehicles[rego]=fresh[rego];added++;}
+        else{
+          fresh[rego].invoices.forEach(inv=>{
+            if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
+              S.vehicles[rego].invoices.push(inv);
+              S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
+              added++;
+            }
+          });
+        }
+      });
+      saveLocal();renderList();updateStats();
+      showToast('Loaded! '+added+' new record'+(added!==1?'s':'')+' merged in.','good');
+      if(S.sel)selectVeh(S.sel);
+    }catch(err){showToast('Could not read file — make sure it is a valid ColdFront JSON backup.','err');}
+  };
+  reader.readAsText(file);
+  input.value='';
 }
 
-}
-
-// ── PDF PROCESSING ────────────────────────────────────────────────────────────
+// ── DROP ZONE ─────────────────────────────────────────────────────────────────
 const dz=document.getElementById('dz');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');handleFiles(e.dataTransfer.files);});
+
 function handleFiles(files){
   const pdfs=Array.from(files).filter(f=>f.name.toLowerCase().endsWith('.pdf'));
   if(!pdfs.length)return;
   (async()=>{for(const f of pdfs)await readPdf(f);})();
 }
+
 async function readPdf(file){
   showProc(true,file.name);
   try{
@@ -322,6 +296,7 @@ async function readPdf(file){
   }catch(e){console.error(e);alert('Could not read: '+file.name);}
   showProc(false);
 }
+
 function parse(items,filename){
   const fullText=items.map(s=>s.str).join(' ');
   const invM=fullText.match(/Tax Invoice\s+(\d{5,7})/i)||fullText.match(/Number:[^0-9]*(\d{5,7})/i);
@@ -352,10 +327,11 @@ function parse(items,filename){
   }
   S.vehicles[rego].invoices.push(inv);
   S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
-  scheduleSave();renderList();updateStats();
+  saveLocal();renderList();updateStats();
   if(S.sel===rego||!S.sel)selectVeh(rego);
   showToast('Invoice #'+invNum+' added for '+rego+'.','good');
 }
+
 function parseLineItems(items,fullText){
   const lines=[];
   const SKIP=/^(QTY|Unit Price|Excl GST|Incl GST|Total|Payment|Our New|ALL CARD|Received|Completed|Last Printed|Customer Service|Warranty|Terms and|Manager|Written By|Contact|Mobile|Bus Ph|Email|Deliver|Salesperson|Item|Zedhill|Gold Coast|Cnr Kortum|West Burleigh|Tax Invoice|Customer:|ABN|COLD FRONT|BURLEIGH|3 DAVO|Odometer|Vehicle Details|Page:|Written|Description)$/i;
@@ -390,11 +366,13 @@ function parseLineItems(items,fullText){
   }
   return lines;
 }
+
 function parseNotes(text){
   const m=text.match(/((?:DIAGNOSE|CARRY OUT|NOTE:)[\s\S]{10,600}?)(?=Payment Method:|Our New Bank|ALL CARD|Total includes)/i);
   if(m)return m[1].replace(/\s+/g,' ').trim().substring(0,500);
   return '';
 }
+
 function buildSummary(notes,lines){
   const n=(notes||'').toUpperCase();const descs=lines.map(l=>l.desc.toUpperCase()).join(' ');const all=n+' '+descs;
   if(all.includes('TURBO'))return 'Supply & install replacement turbo';
@@ -413,35 +391,41 @@ function buildSummary(notes,lines){
   if(lines.length>0){const d=lines[0].desc;return d.charAt(0).toUpperCase()+d.slice(1).toLowerCase().substring(0,50);}
   return '';
 }
+
 function deleteInvoice(rego,invNum){
   if(!confirm('Remove invoice #'+invNum+' from '+rego+'?'))return;
   S.vehicles[rego].invoices=S.vehicles[rego].invoices.filter(i=>i.invNum!==invNum);
   if(!S.vehicles[rego].invoices.length){delete S.vehicles[rego];S.sel=null;}
-  scheduleSave();renderList();updateStats();
+  saveLocal();renderList();updateStats();
   if(S.sel)selectVeh(S.sel);
   else{document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';}
 }
+
 function deleteVehicle(rego){
   if(!confirm('Remove ALL records for '+rego+'?'))return;
   delete S.vehicles[rego];S.sel=null;
-  scheduleSave();renderList();updateStats();
+  saveLocal();renderList();updateStats();
   document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';
 }
+
 function clearAll(){
-  if(!confirm('Clear ALL vehicle and invoice records?'))return;
+  if(!confirm('Clear ALL vehicle and invoice records from this browser?'))return;
   S.vehicles={};S.sel=null;
-  scheduleSave();renderList();updateStats();
+  saveLocal();renderList();updateStats();
   document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';
 }
+
 function toggleInv(id){
   const d=document.getElementById('id-'+id),c=document.getElementById('ch-'+id),h=document.getElementById('hd-'+id);
   const open=d.classList.contains('open');
   d.classList.toggle('open',!open);c.classList.toggle('open',!open);h.classList.toggle('open',!open);
 }
+
 function showToast(msg,type='good'){
   const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';
-  clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.remove('show'),4000);
+  clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.remove('show'),5000);
 }
+
 function renderList(){
   const vehs=Object.values(S.vehicles);
   document.getElementById('vc').textContent=vehs.length+' registered';
@@ -455,6 +439,7 @@ function renderList(){
     </div>`;
   }).join('');
 }
+
 function selectVeh(rego){
   S.sel=rego;renderList();
   const v=S.vehicles[rego];
@@ -524,6 +509,7 @@ function selectVeh(rego){
       }).join('')}
     </div>`;
 }
+
 function updateStats(){
   const vehs=Object.values(S.vehicles);const all=vehs.flatMap(v=>v.invoices);
   const tot=all.reduce((s,i)=>s+i.total,0);
@@ -533,11 +519,14 @@ function updateStats(){
   document.getElementById('st').textContent='$'+tot.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0});
   document.getElementById('sd').textContent=dates.length?dates[dates.length-1]:'—';
 }
+
 function showProc(show,name=''){
   document.getElementById('procMsg').textContent='Reading '+name+'…';
   document.getElementById('procOverlay').classList.toggle('show',show);
 }
+
 function pad(n){return String(n).padStart(2,'0');}
+
 function exportXLS(){
   const vehs=Object.values(S.vehicles);
   if(!vehs.length){alert('No data to export yet.');return;}
@@ -564,35 +553,7 @@ function exportXLS(){
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded',async()=>{
-  try{
-    await msalApp.initialize();
-    // Handle redirect coming back from Microsoft login
-    const response=await msalApp.handleRedirectPromise();
-    if(response&&response.account){
-      account=response.account;
-      await onSignedIn();
-      return;
-    }
-    // Check if already signed in silently
-    const accounts=msalApp.getAllAccounts();
-    if(accounts.length>0){
-      account=accounts[0];
-      await onSignedIn();
-      return;
-    }
-    // Not signed in - show login screen
-    setSyncStatus('','Not signed in');
-  }catch(e){
-    console.error('Init error',e);
-    setSyncStatus('err','Init error: '+e.message);
-    const ls=document.getElementById('loginScreen');
-    const errDiv=document.createElement('div');
-    errDiv.style.cssText='color:#b71c1c;background:#ffcdd2;border:1px solid #ef9a9a;padding:10px 16px;border-radius:2px;font-size:13px;max-width:400px;';
-    errDiv.textContent='Startup error: '+e.message;
-    ls.appendChild(errDiv);
-  }
-});
+window.addEventListener('DOMContentLoaded',()=>{ loadLocal(); });
 </script>
 </body>
 </html>
