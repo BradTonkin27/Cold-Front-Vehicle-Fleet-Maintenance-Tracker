@@ -393,11 +393,12 @@ async function loadFromOneDrive(){
   const token = await getToken();
   if(!token){ setSyncStatus('err','Could not get access token'); return; }
   try{
-    const r = await fetch(`${GRAPH_BASE}/me/drive/root:/${ONEDRIVE_FILE}:/content`,{
+    setSyncStatus('saving','Loading data…');
+    const { fileUrl } = await getSharePointFileUrl(token);
+    const r = await fetch(fileUrl,{
       headers:{ Authorization:'Bearer '+token }
     });
     if(r.status === 404){
-      // File doesn't exist yet — fresh start
       setSyncStatus('ok','Connected · No data yet — upload your first invoice');
       return;
     }
@@ -409,7 +410,8 @@ async function loadFromOneDrive(){
     setSyncStatus('ok','Connected · '+count+' vehicle'+(count!==1?'s':'')+' loaded');
   }catch(e){
     setSyncStatus('err','Could not load data: '+e.message);
-    showToast('Could not load from OneDrive: '+e.message,'err');
+    showToast('Could not load data: '+e.message,'err');
+    console.error('Load error:', e);
   }
 }
 
