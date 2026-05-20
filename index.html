@@ -255,9 +255,19 @@ msalApp=new msal.PublicClientApplication({
 
 async function signIn(){
   try{
+    setSyncStatus('saving','Signing in…');
+    document.getElementById('syncLbl').textContent='Redirecting to Microsoft…';
     await msalApp.initialize();
     await msalApp.loginRedirect({scopes:SCOPES});
-  }catch(e){showToast('Sign in failed: '+e.message,'err');console.error(e);}
+  }catch(e){
+    console.error('signIn error',e);
+    setSyncStatus('err','Sign in error: '+e.message);
+    // Show error prominently on page
+    const ls=document.getElementById('loginScreen');
+    let errDiv=document.getElementById('loginErr');
+    if(!errDiv){errDiv=document.createElement('div');errDiv.id='loginErr';errDiv.style.cssText='color:#b71c1c;background:#ffcdd2;border:1px solid #ef9a9a;padding:10px 16px;border-radius:2px;font-size:13px;max-width:400px;text-align:left;';ls.appendChild(errDiv);}
+    errDiv.textContent='Error: '+e.message+(e.errorCode?' ('+e.errorCode+')':'');
+  }
 }
 
 async function signOut(){
@@ -555,19 +565,32 @@ function exportXLS(){
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',async()=>{
-  await msalApp.initialize();
-  // Handle redirect coming back from Microsoft login
-  const response=await msalApp.handleRedirectPromise();
-  if(response&&response.account){
-    account=response.account;
-    await onSignedIn();
-    return;
-  }
-  // Check if already signed in
-  const accounts=msalApp.getAllAccounts();
-  if(accounts.length>0){
-    account=accounts[0];
-    await onSignedIn();
+  try{
+    await msalApp.initialize();
+    // Handle redirect coming back from Microsoft login
+    const response=await msalApp.handleRedirectPromise();
+    if(response&&response.account){
+      account=response.account;
+      await onSignedIn();
+      return;
+    }
+    // Check if already signed in silently
+    const accounts=msalApp.getAllAccounts();
+    if(accounts.length>0){
+      account=accounts[0];
+      await onSignedIn();
+      return;
+    }
+    // Not signed in - show login screen
+    setSyncStatus('','Not signed in');
+  }catch(e){
+    console.error('Init error',e);
+    setSyncStatus('err','Init error: '+e.message);
+    const ls=document.getElementById('loginScreen');
+    const errDiv=document.createElement('div');
+    errDiv.style.cssText='color:#b71c1c;background:#ffcdd2;border:1px solid #ef9a9a;padding:10px 16px;border-radius:2px;font-size:13px;max-width:400px;';
+    errDiv.textContent='Startup error: '+e.message;
+    ls.appendChild(errDiv);
   }
 });
 </script>
