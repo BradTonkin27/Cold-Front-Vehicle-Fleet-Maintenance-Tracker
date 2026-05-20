@@ -249,17 +249,37 @@ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/p
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Your Azure App Client ID is stored in localStorage so it persists
 const GRAPH_BASE     = 'https://graph.microsoft.com/v1.0';
-const SCOPES         = ['Files.ReadWrite', 'User.Read'];
+const SCOPES         = ['Files.ReadWrite', 'User.Read', 'Sites.Read.All'];
 const DATA_FILENAME  = 'ColdFront_fleet_data.json';
-// Owner OneDrive user ID - data always reads/writes from brad's OneDrive
-// Set to empty string to use signed-in user's own drive (set after first save)
-const OWNER_UPN      = 'brad@coldfrontac.com.au';
+const SP_HOSTNAME    = 'oceanairptyltd1.sharepoint.com';
+const SP_SITE_PATH   = '/sites/AAAWORDCOMMON';
+const SP_FOLDER      = 'COLD FRONT/SYSTEMS DASH BOARD/Fleet Manager';
+
+// Cache the drive ID so we don't look it up every save
+let _driveId = null;
 
 async function getSharePointFileUrl(token) {
-  // Always save to the owner account's OneDrive so everyone shares the same file
-  // Uses /users/{upn}/drive which is accessible to any authenticated user in the org
-  const fileUrl = `${GRAPH_BASE}/users/${OWNER_UPN}/drive/root:/${DATA_FILENAME}:/content`;
-  return { fileUrl };
+  if(!_driveId) {
+    // Look up the SharePoint site
+    const siteR = await fetch(
+      `${GRAPH_BASE}/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if(!siteR.ok) throw new Error('Cannot reach SharePoint site: ' + siteR.status);
+    const site = await siteR.json();
+
+    // Get the default document library drive
+    const driveR = await fetch(
+      `${GRAPH_BASE}/sites/${site.id}/drive`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if(!driveR.ok) throw new Error('Cannot get SharePoint drive: ' + driveR.status);
+    const drive = await driveR.json();
+    _driveId = drive.id;
+  }
+  return {
+    fileUrl: `${GRAPH_BASE}/drives/${_driveId}/root:/${SP_FOLDER}/${DATA_FILENAME}:/content`
+  };
 }
 
 function getClientId(){ return localStorage.getItem('cf_client_id') || 'ebad459b-f733-4059-9bd0-39a065d3d646'; }
