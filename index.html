@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -38,11 +39,18 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .sync-dot.err{background:var(--act);}
 .sync-dot.saving{background:#f59e0b;animation:pulse 0.8s infinite alternate;}
 @keyframes pulse{to{opacity:0.3;}}
+.sync-user{margin-left:auto;font-size:11px;color:rgba(255,255,255,0.3);}
 .toast{display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:3px;font-size:13px;font-weight:600;z-index:200;white-space:nowrap;box-shadow:0 2px 12px rgba(0,0,0,0.15);}
 .toast.warn{background:var(--wrn-bg);border:1px solid var(--wrn-border);color:var(--wrn);}
 .toast.good{background:var(--ok-bg);border:1px solid var(--ok-border);color:var(--ok);}
 .toast.err{background:var(--act-bg);border:1px solid var(--act-border);color:var(--act);}
 .toast.show{display:block;}
+.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;min-height:380px;gap:18px;}
+.login-screen h2{font-size:18px;font-weight:600;}
+.login-screen p{font-size:14px;color:var(--mid);max-width:380px;line-height:1.6;}
+.login-btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:12px 28px;cursor:pointer;border-radius:2px;border:2px solid var(--charcoal);background:var(--charcoal);color:#fff;display:flex;align-items:center;gap:8px;transition:all 0.12s;}
+.login-btn:hover{background:#444;}
+.login-btn svg{width:20px;height:20px;}
 .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule);}
 .stat-cell{padding:14px 20px;border-right:1px solid var(--rule);background:var(--bg);}
 .stat-cell:last-child{border-right:none;}
@@ -126,23 +134,9 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .proc-overlay.show{display:flex;}
 .spinner{width:30px;height:30px;border:3px solid var(--rule);border-top-color:var(--charcoal);border-radius:50%;animation:spin 0.75s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* SETUP SCREEN */
-.setup-screen{padding:40px;max-width:560px;margin:0 auto;}
-.setup-screen h2{font-size:17px;font-weight:600;margin-bottom:8px;}
-.setup-screen p{font-size:13px;color:var(--mid);line-height:1.7;margin-bottom:16px;}
-.setup-field{margin-bottom:14px;}
-.setup-field label{display:block;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:5px;}
-.setup-field input{width:100%;font-family:var(--mono);font-size:13px;padding:8px 12px;border:1px solid var(--rule);border-radius:2px;color:var(--charcoal);}
-.setup-field input:focus{outline:none;border-color:var(--charcoal);}
-.setup-btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:10px 24px;cursor:pointer;border-radius:2px;border:2px solid var(--charcoal);background:var(--charcoal);color:#fff;transition:all 0.12s;margin-top:4px;}
-.setup-btn:hover{background:#444;}
-.setup-note{font-size:11px;color:var(--light);margin-top:16px;padding:12px;background:var(--bg);border:1px solid var(--rule);border-radius:2px;line-height:1.7;}
-.setup-note a{color:var(--charcoal);}
 </style>
 </head>
 <body>
-
 <div class="toast" id="toast"></div>
 <div class="proc-overlay" id="procOverlay"><div class="spinner"></div><span id="procMsg">Reading invoice…</span></div>
 
@@ -161,36 +155,33 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
         Export to Excel
       </button>
+      <button class="hbtn" onclick="signOut()">
+        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </button>
       <input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
     </div>
   </div>
 
   <div class="sync-bar">
     <div class="sync-dot" id="syncDot"></div>
-    <span id="syncLbl">Not connected</span>
-    <span style="margin-left:auto;font-size:11px;color:rgba(255,255,255,0.3);" id="savedLbl"></span>
+    <span id="syncLbl">Not signed in</span>
+    <span class="sync-user" id="syncUser"></span>
   </div>
 
-  <!-- SETUP SCREEN -->
-  <div id="setupScreen" class="setup-screen">
-    <h2>One-time setup</h2>
-    <p>Click the button below to create your team's shared storage. Takes 2 seconds — no signup, no email, no password.</p>
-    <button class="setup-btn" onclick="createStorage()" id="createBtn">Create shared storage</button>
-    <div id="createStatus" style="margin-top:14px;font-size:13px;color:var(--mid);display:none;"></div>
-    <div style="margin-top:20px;border-top:1px solid var(--rule);padding-top:16px;">
-      <p style="font-size:13px;color:var(--mid);margin-bottom:10px;">Already have a Storage ID? Paste it here to reconnect:</p>
-      <div class="setup-field">
-        <label>Storage ID</label>
-        <input type="text" id="blobIdInput" placeholder="paste Storage ID here" style="font-family:var(--mono);font-size:13px;padding:8px 12px;border:1px solid var(--rule);border-radius:2px;width:100%;">
-      </div>
-      <button class="setup-btn" onclick="connectExisting()" style="background:transparent;color:var(--charcoal);margin-top:0;">Connect</button>
-    </div>
-    <div class="setup-note" style="margin-top:16px;">
-      <b>Sharing with your team?</b> After setup, go to <b>Settings</b> in the tracker to copy your Storage ID. Send that ID to your team — they paste it above and connect to the same shared data instantly.
-    </div>
+  <div class="login-screen" id="loginScreen">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
+      <rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/>
+      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+    </svg>
+    <h2>Sign in to access the Fleet Tracker</h2>
+    <p>Uses your Ocean Air Microsoft account. Data saves automatically to a shared Excel file on OneDrive.</p>
+    <button class="login-btn" onclick="signIn()">
+      <svg viewBox="0 0 23 23"><path fill="#f3f3f3" d="M0 0h23v23H0z"/><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
+      Sign in with Microsoft
+    </button>
   </div>
 
-  <!-- MAIN APP -->
   <div id="mainApp" style="display:none;">
     <div class="stats-bar">
       <div class="stat-cell"><div class="stat-val" id="sv">0</div><div class="stat-lbl">Vehicles</div></div>
@@ -217,9 +208,8 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
     </div>
     <div class="data-bar">
       <span class="data-bar-lbl">Records</span>
-      <button class="data-btn" onclick="copyStorageId()">Copy Storage ID</button>
-      <button class="data-btn" onclick="showSetup()">Change connection</button>
       <button class="data-btn danger" onclick="clearAll()">Clear all records</button>
+      <span style="margin-left:auto;font-size:11px;color:var(--light);" id="savedLbl"></span>
     </div>
   </div>
 </div>
@@ -227,110 +217,158 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-const BLOB_BASE='https://jsonblob.com/api/jsonBlob';
-const S={vehicles:{},sel:null};
-let saveTimer=null;
-let blobId=null;
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+const CLIENT_ID   = 'ebad459b-f733-4059-9bd0-39a065d3d646';
+const TENANT_ID   = '417a0740-a32c-44da-8b2c-540d46613fb5';
+const REDIRECT    = 'https://bradtonkin27.github.io/Cold-Front-Vehicle-Fleet-Maintenance-Tracker/';
+const GRAPH_BASE  = 'https://graph.microsoft.com/v1.0';
+const SCOPES      = ['Files.ReadWrite','User.Read'];
+// Shared Excel file via encoded share link
+const SHARE_ID    = 'u!aHR0cHM6Ly9vY2VhbmFpcnB0eWx0ZDEuc2hhcmVwb2ludC5jb20vOng6L3MvQUFBV09SRENPTU1PTi9JUUQxTlNCY1J0S3NTYk40WkxuTk1JTnBBVXBkU3dBcjFab0NSaGFRVlA4RkNfYz9lPVN3cjZtcA';
+const FILE_URL    = `${GRAPH_BASE}/shares/${SHARE_ID}/driveItem`;
 
-// ── CONFIG ────────────────────────────────────────────────────────────────────
-function loadConfig(){
-  blobId=localStorage.getItem('cf_blobid')||null;
-  if(blobId&&document.getElementById('blobIdInput'))
-    document.getElementById('blobIdInput').value=blobId;
-  return !!blobId;
+const S={vehicles:{},sel:null};
+let msalApp=null,account=null,saveTimer=null;
+
+// ── MSAL AUTH ─────────────────────────────────────────────────────────────────
+msalApp=new msal.PublicClientApplication({
+  auth:{clientId:CLIENT_ID,authority:`https://login.microsoftonline.com/${TENANT_ID}`,redirectUri:REDIRECT},
+  cache:{cacheLocation:'localStorage',storeAuthStateInCookie:false}
+});
+
+async function signIn(){
+  try{
+    await msalApp.initialize();
+    await msalApp.loginRedirect({scopes:SCOPES});
+  }catch(e){showToast('Sign in failed: '+e.message,'err');console.error(e);}
 }
 
-async function createStorage(){
-  const btn=document.getElementById('createBtn');
-  const status=document.getElementById('createStatus');
-  btn.textContent='Creating…';btn.disabled=true;
-  status.style.display='block';
-  status.textContent='Setting up your shared storage…';
+async function signOut(){
+  await msalApp.logoutRedirect({account});
+}
+
+async function getToken(){
   try{
-    const r=await fetch(BLOB_BASE,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({})
-    });
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const loc=r.headers.get('Location')||'';
-    const id=loc.split('/').pop();
-    if(!id)throw new Error('No ID returned');
-    blobId=id;
-    localStorage.setItem('cf_blobid',id);
-    status.innerHTML='<b style="color:var(--ok)">✓ Storage created!</b> Your Storage ID: <code style="font-family:var(--mono);background:#eee;padding:2px 6px;border-radius:2px;">'+id+'</code><br><br>Save this ID somewhere — share it with your team so they can connect to the same data.';
-    setTimeout(startApp,1800);
+    const r=await msalApp.acquireTokenSilent({scopes:SCOPES,account});
+    return r.accessToken;
   }catch(e){
-    status.textContent='Could not create storage: '+e.message+'. Please try refreshing the page.';
-    btn.textContent='Create shared storage';btn.disabled=false;
-    console.error(e);
+    await msalApp.acquireTokenRedirect({scopes:SCOPES,account});
+    return null;
   }
 }
 
-function connectExisting(){
-  const id=document.getElementById('blobIdInput').value.trim();
-  if(!id){showToast('Please paste a Storage ID first.','warn');return;}
-  blobId=id;
-  localStorage.setItem('cf_blobid',id);
-  startApp();
-}
-
-function showSetup(){
-  document.getElementById('setupScreen').style.display='block';
-  document.getElementById('mainApp').style.display='none';
-  document.getElementById('headerBtns').style.display='none';
-}
-
-function startApp(){
-  document.getElementById('setupScreen').style.display='none';
+async function onSignedIn(){
+  document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
   document.getElementById('headerBtns').style.display='flex';
-  loadFromBlob();
+  document.getElementById('syncUser').textContent=account.username;
+  await loadData();
   setInterval(pollChanges,30000);
 }
 
-// ── JSONBLOB STORAGE ──────────────────────────────────────────────────────────
+// ── ONEDRIVE EXCEL STORAGE ────────────────────────────────────────────────────
 function setSyncStatus(state,msg){
   document.getElementById('syncDot').className='sync-dot '+(state||'');
   document.getElementById('syncLbl').textContent=msg;
 }
 
-async function loadFromBlob(){
-  if(!blobId)return;
-  setSyncStatus('saving','Loading shared data…');
+async function getFileIds(token){
+  // Get the driveId and itemId from the share link
+  const r=await fetch(FILE_URL,{headers:{Authorization:'Bearer '+token}});
+  if(!r.ok)throw new Error('Cannot access shared file: HTTP '+r.status+'. Make sure the Excel file is shared with your team.');
+  const item=await r.json();
+  return{driveId:item.parentReference.driveId,itemId:item.id};
+}
+
+async function loadData(){
+  const token=await getToken();
+  if(!token)return;
+  setSyncStatus('saving','Loading from OneDrive…');
   try{
-    const r=await fetch(BLOB_BASE+'/'+blobId,{
-      headers:{'Accept':'application/json'}
-    });
-    if(r.status===404){setSyncStatus('ok','Connected · No data yet — upload your first invoice');return;}
+    const{driveId,itemId}=await getFileIds(token);
+    // Read the worksheet named "FleetData"
+    const r=await fetch(
+      `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets/FleetData/usedRange`,
+      {headers:{Authorization:'Bearer '+token}}
+    );
+    if(r.status===404||r.status===400){
+      // Sheet doesn't exist yet — create it on first save
+      setSyncStatus('ok','Connected · No data yet — upload your first invoice');
+      return;
+    }
     if(!r.ok)throw new Error('HTTP '+r.status);
-    const data=await r.json();
+    const sheet=await r.json();
+    const rows=sheet.values||[];
+    if(rows.length<2){setSyncStatus('ok','Connected · No data yet');return;}
+    // Parse rows back into vehicle/invoice structure
+    // Row 0 = headers, rows 1+ = data
+    const data={};
+    for(let i=1;i<rows.length;i++){
+      const row=rows[i];
+      if(!row[0])continue;
+      const rego=row[0],model=row[1],vin=row[2];
+      if(!data[rego])data[rego]={rego,model,vin,invoices:[]};
+      if(!row[3])continue; // no invoice data on this row
+      const inv={
+        invNum:String(row[3]),date:row[4],odometer:row[5]||0,
+        summary:row[6],total:parseFloat(row[7])||0,gst:parseFloat(row[8])||0,
+        lines:[],notes:row[9]||''
+      };
+      // Parse line items from JSON stored in col 10
+      try{if(row[10])inv.lines=JSON.parse(row[10]);}catch(e){}
+      if(!data[rego].invoices.find(x=>x.invNum===inv.invNum))
+        data[rego].invoices.push(inv);
+    }
+    Object.keys(data).forEach(r=>{
+      data[r].invoices.sort((a,b)=>a.date.localeCompare(b.date));
+    });
     Object.assign(S.vehicles,data);
     renderList();updateStats();
     const count=Object.keys(S.vehicles).length;
     setSyncStatus('ok','Connected · '+count+' vehicle'+(count!==1?'s':'')+' loaded');
   }catch(e){
-    setSyncStatus('err','Could not load: '+e.message);
-    showToast('Could not load data: '+e.message,'err');
+    setSyncStatus('err',e.message);
+    showToast(e.message,'err');
     console.error(e);
   }
 }
 
-function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveToBlob,800);}
+function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveData,800);}
 
-async function saveToBlob(){
-  if(!blobId)return;
-  setSyncStatus('saving','Saving…');
+async function saveData(){
+  const token=await getToken();
+  if(!token)return;
+  setSyncStatus('saving','Saving to OneDrive…');
   try{
-    const r=await fetch(BLOB_BASE+'/'+blobId,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(S.vehicles)
+    const{driveId,itemId}=await getFileIds(token);
+    // Build rows: headers + one row per invoice
+    const headers=['Rego','Model','VIN','Invoice #','Date','Odometer','Summary','Total (incl GST)','GST','Notes','Line Items (JSON)'];
+    const rows=[headers];
+    Object.values(S.vehicles).forEach(v=>{
+      v.invoices.forEach(inv=>{
+        rows.push([
+          v.rego,v.model,v.vin||'',
+          inv.invNum,inv.date,inv.odometer||0,
+          inv.summary||'',inv.total,inv.gst,
+          inv.notes||'',
+          JSON.stringify(inv.lines||[])
+        ]);
+      });
     });
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const t=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-    setSyncStatus('ok','Saved · '+t);
-    document.getElementById('savedLbl').textContent='Saved '+t+' · ID: '+blobId;
+    // Ensure worksheet exists then write
+    await ensureSheet(token,driveId,itemId);
+    const r=await fetch(
+      `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets/FleetData/range(address='A1:K${rows.length}')`,
+      {
+        method:'PATCH',
+        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify({values:rows})
+      }
+    );
+    if(!r.ok){const t=await r.text();throw new Error('Save failed: '+r.status+' '+t);}
+    const ts=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+    setSyncStatus('ok','Saved to OneDrive · '+ts);
+    document.getElementById('savedLbl').textContent='Last saved '+ts;
   }catch(e){
     setSyncStatus('err','Save failed: '+e.message);
     showToast('Save failed: '+e.message,'err');
@@ -338,25 +376,55 @@ async function saveToBlob(){
   }
 }
 
-async function pollChanges(){
-  if(!blobId)return;
-  try{
-    const r=await fetch(BLOB_BASE+'/'+blobId,{headers:{'Accept':'application/json'}});
-    if(!r.ok)return;
-    const fresh=await r.json();
-    let changed=false;
-    Object.keys(fresh).forEach(rego=>{
-      if(!S.vehicles[rego]){S.vehicles[rego]=fresh[rego];changed=true;}
-      else{
-        fresh[rego].invoices.forEach(inv=>{
-          if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
-            S.vehicles[rego].invoices.push(inv);
-            S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
-            changed=true;
-          }
-        });
+async function ensureSheet(token,driveId,itemId){
+  // Check if FleetData sheet exists
+  const r=await fetch(
+    `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets`,
+    {headers:{Authorization:'Bearer '+token}}
+  );
+  const data=await r.json();
+  const sheets=(data.value||[]).map(s=>s.name);
+  if(!sheets.includes('FleetData')){
+    await fetch(
+      `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets/add`,
+      {
+        method:'POST',
+        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify({name:'FleetData'})
       }
-    });
+    );
+  }
+}
+
+async function pollChanges(){
+  const token=await getToken();
+  if(!token)return;
+  try{
+    const{driveId,itemId}=await getFileIds(token);
+    const r=await fetch(
+      `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/workbook/worksheets/FleetData/usedRange`,
+      {headers:{Authorization:'Bearer '+token}}
+    );
+    if(!r.ok)return;
+    const sheet=await r.json();
+    const rows=sheet.values||[];
+    if(rows.length<2)return;
+    let changed=false;
+    for(let i=1;i<rows.length;i++){
+      const row=rows[i];
+      if(!row[0]||!row[3])continue;
+      const rego=row[0];
+      if(!S.vehicles[rego])S.vehicles[rego]={rego,model:row[1],vin:row[2],invoices:[]};
+      const invNum=String(row[3]);
+      if(!S.vehicles[rego].invoices.find(x=>x.invNum===invNum)){
+        const inv={invNum,date:row[4],odometer:row[5]||0,summary:row[6],
+          total:parseFloat(row[7])||0,gst:parseFloat(row[8])||0,notes:row[9]||'',lines:[]};
+        try{if(row[10])inv.lines=JSON.parse(row[10]);}catch(e){}
+        S.vehicles[rego].invoices.push(inv);
+        S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
+        changed=true;
+      }
+    }
     if(changed){renderList();updateStats();if(S.sel)selectVeh(S.sel);}
   }catch(e){}
 }
@@ -456,9 +524,7 @@ function parseNotes(text){
   return '';
 }
 function buildSummary(notes,lines){
-  const n=(notes||'').toUpperCase();
-  const descs=lines.map(l=>l.desc.toUpperCase()).join(' ');
-  const all=n+' '+descs;
+  const n=(notes||'').toUpperCase();const descs=lines.map(l=>l.desc.toUpperCase()).join(' ');const all=n+' '+descs;
   if(all.includes('TURBO'))return 'Supply & install replacement turbo';
   if(all.includes('LOG BOOK')||all.includes('LOGBOOK')){
     const extras=[];
@@ -490,7 +556,7 @@ function deleteVehicle(rego){
   document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';
 }
 function clearAll(){
-  if(!confirm('Clear ALL vehicle and invoice records?\nThis affects everyone using the tracker.'))return;
+  if(!confirm('Clear ALL vehicle and invoice records?'))return;
   S.vehicles={};S.sel=null;
   scheduleSave();renderList();updateStats();
   document.getElementById('es').style.display='flex';document.getElementById('dv').style.display='none';
@@ -501,8 +567,7 @@ function toggleInv(id){
   d.classList.toggle('open',!open);c.classList.toggle('open',!open);h.classList.toggle('open',!open);
 }
 function showToast(msg,type='good'){
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.className='toast '+type+' show';
+  const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';
   clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.remove('show'),4000);
 }
 function renderList(){
@@ -626,19 +691,22 @@ function exportXLS(){
   XLSX.writeFile(wb,'ColdFront_Fleet_'+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'.xlsx');
 }
 
-function copyStorageId(){
-  if(!blobId){showToast('Not connected yet.','warn');return;}
-  navigator.clipboard.writeText(blobId).then(()=>{
-    showToast('Storage ID copied — share this with your team!','good');
-  }).catch(()=>{
-    prompt('Copy this Storage ID and share it with your team:',blobId);
-  });
-}
-
 // ── INIT ──────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded',()=>{
-  if(loadConfig()) startApp();
-  // Show Storage ID in data bar if connected
+window.addEventListener('DOMContentLoaded',async()=>{
+  await msalApp.initialize();
+  // Handle redirect coming back from Microsoft login
+  const response=await msalApp.handleRedirectPromise();
+  if(response&&response.account){
+    account=response.account;
+    await onSignedIn();
+    return;
+  }
+  // Check if already signed in
+  const accounts=msalApp.getAllAccounts();
+  if(accounts.length>0){
+    account=accounts[0];
+    await onSignedIn();
+  }
 });
 </script>
 </body>
