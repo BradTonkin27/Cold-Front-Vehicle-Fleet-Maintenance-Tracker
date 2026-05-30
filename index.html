@@ -306,36 +306,90 @@ function handleFiles(files){
 
 async function readPdf(file){
   showProc(true,file.name);
+  const ab=await file.arrayBuffer();
+  let pdfDoc=null;
+  let items=[];
+  let fullText='';
+
+  // Try to load with PDF.js
   try{
-    const ab=await file.arrayBuffer();
-    const pdf=await pdfjsLib.getDocument({data:ab}).promise;
-    let items=[];
-    for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();items=items.concat(c.items);}
-    const fullText=items.map(s=>s.str).join('').trim();
-    if(fullText.length<20){
-      // Scanned image PDF — use Claude vision OCR
-      showProc(true,'Reading scanned invoice with AI…');
-      try{
-        const ocrText=await ocrWithClaude(pdf,file.name);
-        if(ocrText&&ocrText.length>20){
-          // Convert OCR text into fake PDF items and parse normally
-          const fakeItems=ocrText.split(/\s+/).map(str=>({str:' '+str}));
-          // Also add newline-preserving version for regex parsing
-          parse(fakeItems,file.name,ocrText);
-        }else{
-          showProc(false);
-          openManual(file.name);
+    pdfDoc=await pdfjsLib.getDocument({data:ab.slice(0)}).promise;
+    for(let i=1;i<=pdfDoc.numPages;i++){
+      const p=await pdfDoc.getPage(i);
+      const c=await p.getTextContent();
+      items=items.concat(c.items);
+    }
+    fullText=items.map(s=>s.str).join('').trim();
+  }catch(e){
+    console.warn('PDF.js load failed, trying OCR directly:',e);
+    fullText=''; // force OCR path below
+  }
+
+  if(fullText.length<20){
+    // Scanned or unreadable — try OCR with Claude vision
+    showProc(true,'Reading scanned invoice with AI…');
+    try{
+      // If PDF.js loaded, use it for rendering; otherwise render from raw bytes
+      let ocrText='';
+      if(pdfDoc){
+        ocrText=await ocrWithClaude(pdfDoc,file.name);
+      }else{
+        // Re-load PDF.js just for rendering (sometimes loads even when text fails)
+        try{
+          const pdf2=await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
+          ocrText=await ocrWithClaude(pdf2,file.name);
+        }catch(e2){
+          // PDF.js can't render it either — use raw file as image via FileReader
+          ocrText=await ocrRawFile(file);
         }
-      }catch(ocrErr){
-        console.error('OCR failed:',ocrErr);
+      }
+      if(ocrText&&ocrText.length>20){
+        const fakeItems=ocrText.split(/\s+/).map(str=>({str:' '+str}));
+        parse(fakeItems,file.name,ocrText);
+      }else{
         showProc(false);
         openManual(file.name);
       }
-    }else{
-      parse(items,file.name);
+    }catch(ocrErr){
+      console.error('OCR failed:',ocrErr);
+      showProc(false);
+      openManual(file.name);
     }
-  }catch(e){console.error(e);alert('Could not read: '+file.name);}
+  }else{
+    parse(items,file.name);
+  }
   showProc(false);
+}
+
+async function ocrRawFile(file){
+  // Send the raw file bytes directly to Claude as a PDF document
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      try{
+        const base64=e.target.result.split(',')[1];
+        const response=await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            model:'claude-sonnet-4-20250514',
+            max_tokens:1000,
+            messages:[{
+              role:'user',
+              content:[
+                {type:'document',source:{type:'base64',media_type:'application/pdf',data:base64}},
+                {type:'text',text:'This is an automotive invoice. Extract ALL text exactly as it appears. Include invoice number, date, rego/plate, odometer, all line items with prices, GST and total amounts. Output raw text only.'}
+              ]
+            }]
+          })
+        });
+        const data=await response.json();
+        resolve(data.content?.map(b=>b.text||'').join('\n')||'');
+      }catch(err){reject(err);}
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 async function ocrWithClaude(pdf, filename){
