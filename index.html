@@ -233,6 +233,9 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 const S={vehicles:{},sel:null};
+
+// ── OCR.SPACE (free, no signup needed) ──────────────────────────────────────
+const OCR_KEY='K83216565088957';
 const STORE_KEY='cf_fleet_v1';
 
 // ── LOCAL STORAGE ─────────────────────────────────────────────────────────────
@@ -368,9 +371,16 @@ async function ocrRawFile(file){
     reader.onload=async e=>{
       try{
         const base64=e.target.result.split(',')[1];
+        const apiKey=getApiKey()||promptApiKey();
+        if(!apiKey){resolve('');return;}
         const response=await fetch('https://api.anthropic.com/v1/messages',{
           method:'POST',
-          headers:{'Content-Type':'application/json'},
+          headers:{
+            'Content-Type':'application/json',
+            'x-api-key':apiKey,
+            'anthropic-version':'2023-06-01',
+            'anthropic-dangerous-request-url':'true'
+          },
           body:JSON.stringify({
             model:'claude-sonnet-4-20250514',
             max_tokens:1000,
@@ -404,9 +414,16 @@ async function ocrWithClaude(pdf, filename){
   await page.render({canvasContext:ctx,viewport}).promise;
   const base64=canvas.toDataURL('image/jpeg',0.92).split(',')[1];
 
+  const apiKey=getApiKey();
+  if(!apiKey){throw new Error('No API key');}
   const response=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-request-url':'true'
+    },
     body:JSON.stringify({
       model:'claude-sonnet-4-20250514',
       max_tokens:1000,
