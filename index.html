@@ -156,6 +156,26 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 .mbtn-save:hover{background:#444;}
 .spinner{width:30px;height:30px;border:3px solid var(--rule);border-top-color:var(--charcoal);border-radius:50%;animation:spin 0.75s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:150;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--white);border:1px solid var(--rule);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;}
+.modal-head{background:var(--charcoal);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+.modal-head h3{font-size:14px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin:0;}
+.modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;opacity:0.7;line-height:1;}
+.modal-close:hover{opacity:1;}
+.modal-body{padding:20px;}
+.modal-body p{font-size:13px;color:var(--mid);margin-bottom:16px;line-height:1.6;}
+.mf-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.mf-full{margin-bottom:12px;}
+.mf-label{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:4px;display:block;}
+.mf-input{width:100%;font-family:var(--sans);font-size:13px;padding:7px 10px;border:1px solid var(--rule);border-radius:2px;color:var(--charcoal);box-sizing:border-box;}
+.mf-input:focus{outline:none;border-color:var(--charcoal);}
+.modal-foot{padding:12px 20px;border-top:1px solid var(--rule);display:flex;gap:8px;justify-content:flex-end;background:var(--bg);}
+.mbtn{font-family:var(--sans);font-size:13px;font-weight:600;padding:8px 18px;cursor:pointer;border-radius:2px;border:none;}
+.mbtn-cancel{border:1px solid var(--rule)!important;background:var(--white);color:var(--mid);}
+.mbtn-save{background:var(--charcoal);color:#fff;}
+.mbtn-save:hover{background:#444;}
 </style>
 </head>
 <body>
@@ -163,6 +183,66 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 48p
 <div class="proc-overlay" id="procOverlay"><div class="spinner"></div><span id="procMsg">Reading invoice…</span></div>
 <input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
 <input type="file" id="importJson" accept=".json" style="display:none" onchange="importSync(this)">
+
+
+<!-- MANUAL ENTRY MODAL -->
+<div class="modal-overlay" id="manualModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>&#9998; Manual Invoice Entry</h3>
+      <button class="modal-close" onclick="closeManual()">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <p>This is a scanned invoice — text can't be extracted automatically. Please fill in the key details below.</p>
+      <div class="mf-row">
+        <div>
+          <label class="mf-label">Invoice Number *</label>
+          <input class="mf-input" id="mf_inv" placeholder="e.g. 7460">
+        </div>
+        <div>
+          <label class="mf-label">Date</label>
+          <input class="mf-input" id="mf_date" placeholder="e.g. 27 May 2026">
+        </div>
+      </div>
+      <div class="mf-row">
+        <div>
+          <label class="mf-label">Rego *</label>
+          <input class="mf-input" id="mf_rego" placeholder="e.g. 079-LE8">
+        </div>
+        <div>
+          <label class="mf-label">Odometer (km)</label>
+          <input class="mf-input" id="mf_odom" placeholder="e.g. 139041" type="number">
+        </div>
+      </div>
+      <div class="mf-full">
+        <label class="mf-label">Vehicle Model</label>
+        <input class="mf-input" id="mf_model" placeholder="e.g. TOYOTA HILUX">
+      </div>
+      <div class="mf-row">
+        <div>
+          <label class="mf-label">Total (incl GST) *</label>
+          <input class="mf-input" id="mf_total" placeholder="e.g. 612.85" type="number" step="0.01">
+        </div>
+        <div>
+          <label class="mf-label">GST Amount</label>
+          <input class="mf-input" id="mf_gst" placeholder="e.g. 55.72" type="number" step="0.01">
+        </div>
+      </div>
+      <div class="mf-full">
+        <label class="mf-label">Work Summary</label>
+        <input class="mf-input" id="mf_summary" placeholder="e.g. Log book service + brake pads">
+      </div>
+      <div class="mf-full">
+        <label class="mf-label">Notes</label>
+        <textarea class="mf-input" id="mf_notes" rows="3" placeholder="Optional — work description..."></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="mbtn mbtn-cancel" onclick="closeManual()">Cancel</button>
+      <button class="mbtn mbtn-save" onclick="saveManual()">Save Invoice</button>
+    </div>
+  </div>
+</div>
 
 <div class="app">
   <div class="cf-header">
