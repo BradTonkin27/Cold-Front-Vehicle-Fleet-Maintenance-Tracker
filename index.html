@@ -278,6 +278,10 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
         Export Excel
       </button>
+      <button class="hbtn" onclick="exportFleetComplete()" title="Build a FleetComplete bulk-import file for the whole fleet">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        For FleetComplete
+      </button>
       <button class="hbtn icon-only" onclick="openSettings()" title="Settings">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       </button>
@@ -288,6 +292,10 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
     <div class="strip-dot ok" id="stripDot"></div>
     <span id="stripLbl">Ready</span>
     <div class="strip-actions">
+      <button class="strip-btn" id="fcPullBtn" onclick="pullOdometers()" title="Pull current odometers from FleetComplete (works when opened from the CF Server)">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        Live odometers
+      </button>
       <button class="strip-btn" onclick="exportSync()" title="Download the data file to upload to your shared SharePoint folder">
         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Save data file
@@ -329,9 +337,14 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
     <div class="modal-head"><h3>Settings</h3><button class="modal-x" onclick="closeModal('settingsModal')">&#x2715;</button></div>
     <div class="modal-body">
       <div class="mf-full">
-        <label class="mf-lbl">FleetComplete link</label>
-        <input class="mf-in" id="set_fc" placeholder="https://...">
-        <div class="help-box">Paste the web address you use to open FleetComplete. The <b>Set in FleetComplete</b> buttons will open this and copy the service details ready to paste into a reminder.</div>
+        <label class="mf-lbl">FleetComplete import link (optional)</label>
+        <input class="mf-in" id="set_fc" placeholder="https://fleetcomplete.geotab.com/coldfrontac/#maintenanceWorkOrderBulkImport">
+        <div class="help-box">Paste the address of the FleetComplete <b>Import existing records</b> page. When you export, the tracker opens it automatically so you can drop the file straight in. Leave blank to just download the file.</div>
+      </div>
+      <div class="mf-full">
+        <label class="mf-lbl">FleetComplete schedule name</label>
+        <input class="mf-in" id="set_fcsched" placeholder="Service Reminder - 10000kms(b174)">
+        <div class="help-box">This must match a Maintenance Schedule in FleetComplete <b>exactly</b> (copy it from the import template's Configuration tab). Every exported service is logged against this schedule, so FleetComplete then tracks the next one due.</div>
       </div>
       <div class="mf-row">
         <div>
@@ -400,7 +413,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/p
 const S={vehicles:{},sel:null};
 const STORE_KEY='cf_fleet_v1';
 const CFG_KEY='cf_fleet_cfg';
-let CFG={fcUrl:'',months:6,km:10000};
+let CFG={fcUrl:'',fcSchedule:'Service Reminder - 10000kms(b174)',months:6,km:10000};
 
 /* ════════ STORAGE ════════ */
 function saveLocal(){
@@ -453,11 +466,28 @@ function serviceStatus(v){
   if(!n)return {code:'none',label:'No service history'};
   const today=new Date();today.setHours(0,0,0,0);
   const days=Math.round((n.dueDate-today)/86400000);
+  // Date-based status
   let code='ok',label='Up to date';
   if(days<0){code='overdue';label=Math.abs(days)+' day'+(Math.abs(days)!==1?'s':'')+' overdue';}
   else if(days<=30){code='soon';label='Due in '+days+' day'+(days!==1?'s':'');}
   else label='Due '+fmtDate(n.dueDate);
-  return {code,label,days,...n};
+  // Km-based status from live odometer (FleetComplete), if we have it
+  let kmLeft=null;
+  if(v.currentOdo&&n.dueKm){
+    kmLeft=n.dueKm-v.currentOdo;
+    let kmCode='ok';
+    if(kmLeft<0)kmCode='overdue';
+    else if(kmLeft<=1000)kmCode='soon';
+    // Take whichever is more urgent (km or date)
+    const rank={overdue:0,soon:1,ok:2};
+    if(rank[kmCode]<rank[code]){
+      code=kmCode;
+      label=kmLeft<0?Math.abs(kmLeft).toLocaleString('en-AU')+' km over'
+           :kmLeft<=1000?'Due in '+kmLeft.toLocaleString('en-AU')+' km'
+           :label;
+    }
+  }
+  return {code,label,days,kmLeft,...n};
 }
 
 /* ════════ CALENDAR (.ics) ════════ */
@@ -480,19 +510,93 @@ function addToCalendar(rego){
 }
 
 /* ════════ FLEETCOMPLETE ════════ */
-function toFleetComplete(rego){
-  const v=S.vehicles[rego];const st=serviceStatus(v);
-  const txt=['Service reminder — '+rego+' '+(v.model||''),
-    'Next service due: '+(st.dueDate?fmtDate(st.dueDate):'set date'),
-    'Last service: '+(st.lastDate?fmtDate(st.lastDate):'—')+(st.lastOdom?' at '+st.lastOdom.toLocaleString('en-AU')+' km':''),
-    'Interval: every '+vehInterval(v)+' months / '+vehIntervalKm(v).toLocaleString('en-AU')+' km'].join('\\n');
-  const open=()=>{
-    if(CFG.fcUrl){window.open(CFG.fcUrl,'_blank');showToast('Details copied. Paste them into a service reminder in FleetComplete.','good');}
-    else{showToast('Add your FleetComplete link in Settings first, then this opens it with the details copied.','warn');openSettings();}
-  };
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt).then(open).catch(open);
-  }else open();
+/* ════════ FLEETCOMPLETE BULK IMPORT FILE ════════
+   FleetComplete (MyGeotab) imports maintenance work orders from an Excel file
+   on the "Import existing records" page. We build that exact format here so the
+   whole job history (or one vehicle) drops straight in — no typing. */
+const FC_HEADERS=['Job/ Device Serial Number, VIN, or Asset Name*','Job/ Source*','Job/ Maintenance name*','Job/ Start Date*','Job/ Date completed*','Job/ Odometer*','Job/ Engine hours*','Job/ Cost currency*','Job/ Job status*','Job/ Description','Job/ Event description','Job/ VMRS system code','Job/ Notes','Job/ Service work accomplished','Job/ Priority','Job/ Hours','Job/ Labor','Job/ Parts cost','Job/ Shipping cost','Job/ Taxes','Work order/ Reference*','Work order/ Creation Date','Work order/ Priority','Work order/ Assigned to username (email)','Work order/ Zone Name','Work order/ Reason for repair','Work order/ Repair class','Work order/ Notes','Work order/ Due on date','Work order/ Date completed'];
+
+function isoZ(dateStr){const d=parseDate(dateStr);return d?d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T00:00:00Z':'';}
+
+function fcRows(vehicles){
+  const sched=CFG.fcSchedule||'Service Reminder - 10000kms(b174)';
+  const rows=[FC_HEADERS];const skipped=[];
+  vehicles.forEach(v=>{
+    if(v.rego==='REGO'||v.rego.startsWith('UNK-')){skipped.push(v.rego);return;}
+    v.invoices.forEach(inv=>{
+      const iso=isoZ(inv.date);
+      if(!iso){skipped.push(v.rego+' #'+inv.invNum+' (no date)');return;}
+      const total=parseFloat(inv.total)||0,gst=parseFloat(inv.gst)||0;
+      const r=new Array(30).fill('');
+      r[0]=v.rego;                       // asset name
+      r[1]='Scheduled';                  // source
+      r[2]=sched;                        // maintenance name (must match a FleetComplete schedule)
+      r[3]=iso; r[4]=iso;                // start / completed
+      r[5]=Math.round(inv.odometer||0);  // odometer (km)
+      r[6]=0;                            // engine hours
+      r[7]='AUD'; r[8]='Completed';
+      r[9]=inv.summary||'Service';       // description
+      r[12]=(inv.notes||'').substring(0,200); // notes
+      r[17]=Math.round((total-gst)*100)/100;  // parts cost (ex GST)
+      r[19]=Math.round(gst*100)/100;          // taxes (GST)
+      r[20]=String(inv.invNum||'');      // work order reference
+      r[21]=iso; r[29]=iso;              // WO creation / completed
+      rows.push(r);
+    });
+  });
+  return {rows,skipped};
+}
+
+function buildFcFile(vehicles,label){
+  if(!vehicles.length){showToast('No vehicles to export.','warn');return;}
+  const {rows,skipped}=fcRows(vehicles);
+  if(rows.length<2){showToast('Nothing to export — these vehicles have no dated services.','warn');return;}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,'Import Sheet');
+  const now=new Date();
+  const fname='ColdFront_FleetComplete_'+(label||'fleet')+'_'+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'.xlsx';
+  XLSX.writeFile(wb,fname);
+  const n=rows.length-1;
+  let msg=n+' service record'+(n!==1?'s':'')+' exported. Open FleetComplete → Maintenance → Import existing records, drop this file in, and click Import.';
+  if(skipped.length)msg+=' ('+skipped.length+' skipped — no rego/date.)';
+  showToast(msg,'good');
+  if(CFG.fcUrl)setTimeout(()=>window.open(CFG.fcUrl,'_blank'),1200);
+}
+
+function toFleetComplete(rego){buildFcFile([S.vehicles[rego]],rego);}
+function exportFleetComplete(){buildFcFile(Object.values(S.vehicles),'fleet');}
+
+/* ════════ FLEETCOMPLETE LIVE LINK (only when served from CF Server) ════════
+   The fleet tracker talks to the CF Server the same way your other trackers do.
+   When opened from http://127.0.0.1:52731/fleet it can pull live odometers. */
+const FC_LOCAL=(location.port==='52731')||(location.hostname==='127.0.0.1')||(location.hostname==='localhost');
+function normPlate(s){return (s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');}
+async function pullOdometers(){
+  if(!FC_LOCAL){showToast('Live odometers only work when the tracker is opened from the CF Server (http://127.0.0.1:52731/fleet).','warn');return;}
+  setStrip('busy','Pulling live odometers from FleetComplete…');
+  try{
+    const r=await fetch('/fc-odometers');const d=await r.json();
+    if(!d.ok){setStrip('err','FleetComplete: '+(d.error||'not connected'));showToast(d.error||'FleetComplete not connected. Open it in Chrome to capture a token.','err');return;}
+    // Build lookup by plate / vin / name
+    const byPlate={},byVin={},byName={};
+    d.assets.forEach(a=>{
+      if(a.plate)byPlate[normPlate(a.plate)]=a;
+      if(a.vin)byVin[normPlate(a.vin)]=a;
+      if(a.name)byName[normPlate(a.name)]=a;
+    });
+    let matched=0,updated=0;
+    Object.values(S.vehicles).forEach(v=>{
+      const key=normPlate(v.rego);
+      const a=byPlate[key]||byName[key]||(v.vin&&byVin[normPlate(v.vin)]);
+      if(a){matched++;
+        if(a.odometerKm!=null){v.currentOdo=a.odometerKm;v.currentOdoDate=a.asOf;updated++;}
+      }
+    });
+    saveLocal();renderAll();
+    setStrip('ok','FleetComplete linked · '+updated+' live odometers');
+    showToast('Matched '+matched+' vehicles to FleetComplete, '+updated+' live odometer'+(updated!==1?'s':'')+' updated. Reminders now use real km.','good');
+  }catch(e){setStrip('err','Could not reach CF Server');showToast('Could not reach the CF Server. Is it running?','err');}
 }
 
 /* ════════ JSON SYNC ════════ */
@@ -730,12 +834,14 @@ function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function openSettings(){
   document.getElementById('set_fc').value=CFG.fcUrl||'';
+  document.getElementById('set_fcsched').value=CFG.fcSchedule||'';
   document.getElementById('set_months').value=CFG.months||6;
   document.getElementById('set_km').value=CFG.km||10000;
   openModal('settingsModal');
 }
 function saveSettings(){
   CFG.fcUrl=document.getElementById('set_fc').value.trim();
+  CFG.fcSchedule=document.getElementById('set_fcsched').value.trim()||'Service Reminder - 10000kms(b174)';
   CFG.months=parseInt(document.getElementById('set_months').value);
   CFG.km=parseInt(document.getElementById('set_km').value);
   saveCfg();closeModal('settingsModal');renderAll();
@@ -776,7 +882,7 @@ function showSchedule(){
   const soon=withStatus.filter(x=>x.st.code==='soon').sort((a,b)=>a.st.days-b.st.days);
   const ok=withStatus.filter(x=>x.st.code==='ok'||x.st.code==='none');
   let html='<div class="sched-title">Service schedule</div>'
-    +'<div class="sched-intro">Vehicles are listed by how soon they need servicing. Use <b>Calendar</b> to drop a reminder into Outlook, or <b>Set in FleetComplete</b> to log it there.</div>';
+    +'<div class="sched-intro">Vehicles are listed by how soon they need servicing. Use <b>Calendar</b> to drop a reminder into Outlook, or <b>FleetComplete</b> to build an import file that logs the service in FleetComplete.</div>';
   const card=(v,st)=>'<div class="due-card '+st.code+'">'
     +'<div class="due-rego">'+v.rego+'</div>'
     +'<div class="due-info"><div class="due-model">'+v.model+'</div>'
@@ -823,7 +929,7 @@ function selectVeh(rego){
     +'<div class="svc-field-sub">'+(st.lastDate?'Last serviced '+fmtDate(st.lastDate):'')+'</div></div>'
     +'<div><div class="svc-field-lbl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>Next service at</div>'
     +'<div class="svc-field-val">'+(st.dueKm?st.dueKm.toLocaleString('en-AU')+' km':'—')+'</div>'
-    +'<div class="svc-field-sub">'+(st.lastOdom?'Last at '+st.lastOdom.toLocaleString('en-AU')+' km':'No odometer on record')+'</div></div>'
+    +'<div class="svc-field-sub">'+(v.currentOdo?'Now at '+v.currentOdo.toLocaleString('en-AU')+' km'+(st.kmLeft!=null?' · '+(st.kmLeft<0?Math.abs(st.kmLeft).toLocaleString('en-AU')+' km over':st.kmLeft.toLocaleString('en-AU')+' km to go'):''):(st.lastOdom?'Last at '+st.lastOdom.toLocaleString('en-AU')+' km':'No odometer on record'))+'</div></div>'
     +'</div>'
     +'<div class="svc-foot">'
     +'<span class="svc-interval">Service every '
@@ -831,7 +937,7 @@ function selectVeh(rego){
     +[3,6,12].map(m=>'<option value="'+m+'"'+(m===months?' selected':'')+'>'+m+' months</option>').join('')
     +'</select> / '+vehIntervalKm(v).toLocaleString('en-AU')+' km</span>'
     +'<button class="mini-btn" onclick="addToCalendar(\''+v.rego+'\')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Add to calendar</button>'
-    +'<button class="mini-btn accent" onclick="toFleetComplete(\''+v.rego+'\')"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Set in FleetComplete</button>'
+    +'<button class="mini-btn accent" onclick="toFleetComplete(\''+v.rego+'\')"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>FleetComplete file</button>'
     +'</div></div>';
 
   // Odometer summary
@@ -915,6 +1021,17 @@ function exportXLS(){
 window.addEventListener('DOMContentLoaded',()=>{
   loadCfg();loadLocal();renderAll();
   document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
+  // FleetComplete live link is only available when served from the CF Server
+  const btn=document.getElementById('fcPullBtn');
+  if(!FC_LOCAL){
+    btn.style.opacity='0.5';
+    btn.title='Open the tracker from the CF Server (http://127.0.0.1:52731/fleet) to pull live odometers from FleetComplete';
+  }else{
+    // Check the FleetComplete token is live, the same way the other trackers do
+    fetch('/fc-token-ping').then(r=>r.json()).then(d=>{
+      setStrip(d&&d.ok?'ok':'err', d&&d.ok?'FleetComplete linked — ready to pull live odometers':'FleetComplete not connected — open it in Chrome to capture a token');
+    }).catch(()=>{});
+  }
 });
 </script>
 </body>
