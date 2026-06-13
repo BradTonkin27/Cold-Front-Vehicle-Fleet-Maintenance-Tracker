@@ -520,15 +520,17 @@ function isoZ(dateStr){const d=parseDate(dateStr);return d?d.getFullYear()+'-'+p
 
 function fcRows(vehicles){
   const sched=CFG.fcSchedule||'Service Reminder - 10000kms(b174)';
-  const rows=[FC_HEADERS];const skipped=[];
+  const rows=[FC_HEADERS];const skipped=[];const noVin=new Set();
   vehicles.forEach(v=>{
     if(v.rego==='REGO'||v.rego.startsWith('UNK-')){skipped.push(v.rego);return;}
+    const assetId=v.fcVin||v.vin;
+    if(!assetId)noVin.add(v.rego);
     v.invoices.forEach(inv=>{
       const iso=isoZ(inv.date);
       if(!iso){skipped.push(v.rego+' #'+inv.invNum+' (no date)');return;}
       const total=parseFloat(inv.total)||0,gst=parseFloat(inv.gst)||0;
       const r=new Array(30).fill('');
-      r[0]=v.rego;                       // asset name
+      r[0]=assetId||v.rego;              // asset id: matched VIN > invoice VIN > rego (FleetComplete matches Serial/VIN/Asset Name, NOT plate)
       r[1]='Scheduled';                  // source
       r[2]=sched;                        // maintenance name (must match a FleetComplete schedule)
       r[3]=iso; r[4]=iso;                // start / completed
@@ -544,12 +546,12 @@ function fcRows(vehicles){
       rows.push(r);
     });
   });
-  return {rows,skipped};
+  return {rows,skipped,noVin:[...noVin]};
 }
 
 function buildFcFile(vehicles,label){
   if(!vehicles.length){showToast('No vehicles to export.','warn');return;}
-  const {rows,skipped}=fcRows(vehicles);
+  const {rows,skipped,noVin}=fcRows(vehicles);
   if(rows.length<2){showToast('Nothing to export — these vehicles have no dated services.','warn');return;}
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet(rows);
@@ -559,9 +561,9 @@ function buildFcFile(vehicles,label){
   XLSX.writeFile(wb,fname);
   const n=rows.length-1;
   let msg=n+' service record'+(n!==1?'s':'')+' exported. Open FleetComplete → Maintenance → Import existing records, drop this file in, and click Import.';
-  if(skipped.length)msg+=' ('+skipped.length+' skipped — no rego/date.)';
   showToast(msg,'good');
-  if(CFG.fcUrl)setTimeout(()=>window.open(CFG.fcUrl,'_blank'),1200);
+  if(noVin.length)setTimeout(()=>showToast('Heads up: '+noVin.join(', ')+' have no VIN, so they\'re sent by rego and may not match. Run Live odometers first to link them.','warn'),300);
+  if(CFG.fcUrl)setTimeout(()=>window.open(CFG.fcUrl,'_blank'),1500);
 }
 
 function toFleetComplete(rego){buildFcFile([S.vehicles[rego]],rego);}
@@ -590,6 +592,8 @@ async function pullOdometers(){
       const key=normPlate(v.rego);
       const a=byPlate[key]||byName[key]||(v.vin&&byVin[normPlate(v.vin)]);
       if(a){matched++;
+        if(a.vin)v.fcVin=a.vin;
+        if(a.name)v.fcName=a.name;
         if(a.odometerKm!=null){v.currentOdo=a.odometerKm;v.currentOdoDate=a.asOf;updated++;}
       }
     });
