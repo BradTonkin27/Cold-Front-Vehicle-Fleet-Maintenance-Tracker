@@ -64,18 +64,19 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 .stat-lbl{font-size:10px;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--light);margin-top:4px;}
 
 /* BODY */
-.body{display:grid;grid-template-columns:308px 1fr;min-height:560px;}
-.left{border-right:1px solid var(--rule);display:flex;flex-direction:column;background:var(--white);}
+.body{display:grid;grid-template-columns:308px 1fr;height:clamp(440px, calc(100vh - 250px), 1000px);}
+.left{border-right:1px solid var(--rule);display:flex;flex-direction:column;background:var(--white);overflow:hidden;}
 .panel-head{padding:11px 16px;font-size:10px;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--light);border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;background:var(--panel);}
 .search{padding:10px 12px;border-bottom:1px solid var(--rule);}
 .search input{width:100%;font-family:var(--sans);font-size:13px;padding:8px 11px;border:1px solid var(--rule);border-radius:5px;color:var(--charcoal);background:var(--white);}
 .search input:focus{outline:none;border-color:var(--charcoal);}
-.drop-zone{margin:10px 12px;border:1.5px dashed var(--rule);padding:14px 10px;text-align:center;cursor:pointer;transition:all 0.15s;border-radius:6px;}
-.drop-zone.over,.drop-zone:hover{border-color:var(--charcoal);background:var(--panel);}
-.dz-main{font-size:12px;font-weight:600;color:var(--charcoal);}
-.dz-sub{font-size:11px;color:var(--light);margin-top:2px;}
+.drop-zone{margin:12px;border:2px dashed var(--accent);background:var(--accent-bg);padding:20px 14px;text-align:center;cursor:pointer;transition:all 0.15s;border-radius:9px;}
+.drop-zone.over,.drop-zone:hover{background:#d8e6fc;border-color:#0d47a1;box-shadow:0 3px 10px rgba(21,101,192,0.18);transform:translateY(-1px);}
+.drop-zone svg{width:28px;height:28px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-bottom:7px;}
+.dz-main{font-size:14px;font-weight:700;color:var(--accent);letter-spacing:0.01em;}
+.dz-sub{font-size:12px;color:var(--mid);margin-top:3px;}
 .dz-link{color:var(--accent);text-decoration:underline;cursor:pointer;}
-.veh-list{flex:1;overflow-y:auto;}
+.veh-list{flex:1;min-height:0;overflow-y:auto;}
 .veh-empty{padding:28px 18px;font-size:13px;color:var(--light);text-align:center;line-height:1.7;}
 .veh-item{padding:11px 16px;border-bottom:1px solid var(--rule);cursor:pointer;display:flex;align-items:center;gap:11px;transition:background 0.1s;}
 .veh-item:hover{background:var(--panel);}
@@ -95,7 +96,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 .right{display:flex;flex-direction:column;background:var(--white);overflow:hidden;}
 
 /* SCHEDULE DASHBOARD */
-.sched{flex:1;overflow-y:auto;padding:22px 26px;}
+.sched{flex:1;min-height:0;overflow-y:auto;padding:22px 26px;}
 .sched-title{font-size:16px;font-weight:700;letter-spacing:0.01em;margin-bottom:3px;}
 .sched-intro{font-size:12.5px;color:var(--mid);margin-bottom:20px;line-height:1.6;}
 .grp{margin-bottom:24px;}
@@ -126,7 +127,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 .ok-collapsed{font-size:12px;color:var(--light);}
 
 /* VEHICLE DETAIL */
-.detail{flex:1;overflow-y:auto;padding:22px 26px;}
+.detail{flex:1;min-height:0;overflow-y:auto;padding:22px 26px;}
 .back-link{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--mid);cursor:pointer;margin-bottom:16px;border:none;background:none;font-family:var(--sans);}
 .back-link:hover{color:var(--charcoal);}
 .back-link svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
@@ -237,7 +238,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 @keyframes spin{to{transform:rotate(360deg)}}
 
 @media(max-width:780px){
-  .body{grid-template-columns:1fr;}
+  .body{grid-template-columns:1fr;height:auto;}
   .left{border-right:none;border-bottom:1px solid var(--rule);max-height:300px;}
   .stats{grid-template-columns:repeat(2,1fr);}
   .stat:nth-child(2){border-right:none;}
@@ -319,6 +320,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
       <div class="panel-head"><span>Vehicles</span><span id="vc">0 registered</span></div>
       <div class="search"><input type="text" id="search" placeholder="Search rego or model…" oninput="renderList()"></div>
       <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <div class="dz-main">Drop invoice PDFs here</div>
         <div class="dz-sub">or <span class="dz-link">browse to upload</span></div>
       </div>
