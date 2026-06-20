@@ -431,6 +431,18 @@ function saveLocal(){
 }
 function loadLocal(){
   try{const raw=localStorage.getItem(STORE_KEY);if(raw)Object.assign(S.vehicles,JSON.parse(raw));}catch(e){console.warn(e);}
+  normalizeVehicles();
+}
+/* Guarantee every vehicle record is well-formed so the render/stat functions
+   (which all assume v.invoices is an array) can never hit undefined. Drops junk
+   entries and repairs missing invoices arrays from legacy/partial saves. */
+function normalizeVehicles(){
+  Object.keys(S.vehicles).forEach(rego=>{
+    const v=S.vehicles[rego];
+    if(!v||typeof v!=='object'){delete S.vehicles[rego];return;}
+    if(!Array.isArray(v.invoices))v.invoices=[];
+    if(!v.rego)v.rego=rego;
+  });
 }
 function loadCfg(){
   try{const raw=localStorage.getItem(CFG_KEY);if(raw)CFG=Object.assign(CFG,JSON.parse(raw));}catch(e){}
@@ -1055,7 +1067,7 @@ function updateStats(){
   document.getElementById('st').textContent='$'+tot.toLocaleString('en-AU',{maximumFractionDigits:0});
 }
 
-function renderAll(){renderList();updateStats();if(S.sel&&S.vehicles[S.sel])selectVeh(S.sel);else showSchedule();}
+function renderAll(){normalizeVehicles();renderList();updateStats();if(S.sel&&S.vehicles[S.sel])selectVeh(S.sel);else showSchedule();}
 
 /* ════════ EXCEL EXPORT ════════ */
 function exportXLS(){
