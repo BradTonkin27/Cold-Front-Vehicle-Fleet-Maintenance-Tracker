@@ -409,6 +409,10 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
   </div>
 </div>
 
+<!-- Shared fleet data injected by the CF Server from the SharePoint sync folder.
+     The server replaces the JSON between the START/END markers via IndexOf/Substring. -->
+<script>/*__CF_FLEET_DATA_START__*/window.__CF_FLEET_DATA__=null;/*__CF_FLEET_DATA_END__*/</script>
+
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -611,26 +615,60 @@ function exportSync(){
   const a=document.createElement('a');a.download='ColdFront_fleet_data.json';a.href=URL.createObjectURL(blob);a.click();URL.revokeObjectURL(a.href);
   showToast('Saved. Upload ColdFront_fleet_data.json to your shared SharePoint folder so the team sees the latest.','good');
 }
+/* Merge a fresh {rego:vehicle} map into S.vehicles without clobbering existing
+   records. New vehicles are added whole; existing vehicles gain only invoices
+   whose invNum is not already present. Returns the count of records added. */
+function mergeFleet(fresh){
+  if(!fresh||typeof fresh!=='object')return 0;
+  let added=0;
+  Object.keys(fresh).forEach(rego=>{
+    const incoming=fresh[rego];
+    if(!incoming||!Array.isArray(incoming.invoices))return;
+    if(!S.vehicles[rego]){S.vehicles[rego]=incoming;added++;}
+    else{incoming.invoices.forEach(inv=>{
+      if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
+        S.vehicles[rego].invoices.push(inv);
+        S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));added++;
+      }
+    });}
+  });
+  return added;
+}
 function importSync(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
     try{
-      const fresh=JSON.parse(e.target.result);let added=0;
-      Object.keys(fresh).forEach(rego=>{
-        if(!S.vehicles[rego]){S.vehicles[rego]=fresh[rego];added++;}
-        else{fresh[rego].invoices.forEach(inv=>{
-          if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
-            S.vehicles[rego].invoices.push(inv);
-            S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));added++;
-          }
-        });}
-      });
+      const fresh=JSON.parse(e.target.result);
+      const added=mergeFleet(fresh);
       saveLocal();renderAll();
       showToast('Loaded — '+added+' new record'+(added!==1?'s':'')+' merged in.','good');
     }catch(err){showToast('Could not read that file. Make sure it is a Cold Front data file.','err');}
   };
   reader.readAsText(file);input.value='';
+}
+
+/* ════════ AUTO-RECOVER ON FRESH LOAD ════════
+   localStorage is scoped to the exact origin (scheme + host + port). Open the
+   tracker from a different origin than the one the PDFs were parsed under
+   (e.g. localhost vs 127.0.0.1, file:// vs http://, or a different port) and the
+   local copy looks empty. On every load we also pull the shared copy so the
+   data follows the tool regardless of which origin it was opened from:
+     1. window.__CF_FLEET_DATA__  — injected by the CF Server from SharePoint
+     2. ColdFront_fleet_data.json — served from the same folder as a fallback
+   Both merge in (never clobber) using the same rules as a manual import. */
+async function autoRecover(){
+  let fresh=null;
+  if(window.__CF_FLEET_DATA__&&typeof window.__CF_FLEET_DATA__==='object')fresh=window.__CF_FLEET_DATA__;
+  if(!fresh){
+    try{
+      const r=await fetch('ColdFront_fleet_data.json',{cache:'no-store'});
+      if(r.ok)fresh=await r.json();
+    }catch(e){/* no shared file reachable — that is fine */}
+  }
+  if(!fresh||typeof fresh!=='object')return;
+  const added=mergeFleet(fresh);
+  if(added){saveLocal();renderAll();setStrip('ok','Recovered '+added+' record'+(added!==1?'s':'')+' from shared data');}
 }
 
 /* ════════ PDF UPLOAD ════════ */
@@ -1026,6 +1064,7 @@ function exportXLS(){
 /* ════════ INIT ════════ */
 window.addEventListener('DOMContentLoaded',()=>{
   loadCfg();loadLocal();renderAll();
+  autoRecover();
   document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
   // FleetComplete live link is only available when served from the CF Server
   const btn=document.getElementById('fcPullBtn');
