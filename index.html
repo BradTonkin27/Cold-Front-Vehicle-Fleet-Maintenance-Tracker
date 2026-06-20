@@ -625,12 +625,16 @@ function mergeFleet(fresh){
     const incoming=fresh[rego];
     if(!incoming||!Array.isArray(incoming.invoices))return;
     if(!S.vehicles[rego]){S.vehicles[rego]=incoming;added++;}
-    else{incoming.invoices.forEach(inv=>{
-      if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
-        S.vehicles[rego].invoices.push(inv);
-        S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));added++;
-      }
-    });}
+    else{
+      // Existing record may be partial/legacy — make sure it has an invoices array
+      if(!Array.isArray(S.vehicles[rego].invoices))S.vehicles[rego].invoices=[];
+      incoming.invoices.forEach(inv=>{
+        if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
+          S.vehicles[rego].invoices.push(inv);
+          S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));added++;
+        }
+      });
+    }
   });
   return added;
 }
@@ -692,8 +696,12 @@ function readJsonFile(file){
       const added=mergeFleet(JSON.parse(e.target.result));
       saveLocal();renderAll();
       showToast('Loaded — '+added+' record'+(added!==1?'s':'')+' merged from '+file.name+'.','good');
-    }catch(err){showToast('Could not read '+file.name+' — make sure it is a Cold Front data file.','err');}
+    }catch(err){
+      console.error('readJsonFile failed:',err);
+      showToast('Could not read '+file.name+' — '+(err&&err.message?err.message:'is it a Cold Front data file?'),'err');
+    }
   };
+  reader.onerror=()=>showToast('Could not open '+file.name+' (read error).','err');
   reader.readAsText(file);
 }
 async function readPdf(file){
