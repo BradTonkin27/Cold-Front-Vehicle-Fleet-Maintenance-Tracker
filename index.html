@@ -251,7 +251,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 <body>
 <div class="toast" id="toast"></div>
 <div class="proc" id="proc"><div class="spinner"></div><span id="procMsg">Reading invoice…</span></div>
-<input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
+<input type="file" id="fi" accept=".pdf,.json" multiple style="display:none" onchange="handleFiles(this.files)">
 <input type="file" id="importJson" accept=".json" style="display:none" onchange="importSync(this)">
 
 <div class="app">
@@ -322,7 +322,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
       <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <div class="dz-main">Drop invoice PDFs here</div>
-        <div class="dz-sub">or <span class="dz-link">browse to upload</span></div>
+        <div class="dz-sub">or the <b>ColdFront_fleet_data.json</b> save file — <span class="dz-link">browse</span></div>
       </div>
       <div class="veh-list" id="vl"><div class="veh-empty">No vehicles yet.<br>Add invoices to begin.</div></div>
     </div>
@@ -635,17 +635,8 @@ function mergeFleet(fresh){
   return added;
 }
 function importSync(input){
-  const file=input.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const fresh=JSON.parse(e.target.result);
-      const added=mergeFleet(fresh);
-      saveLocal();renderAll();
-      showToast('Loaded — '+added+' new record'+(added!==1?'s':'')+' merged in.','good');
-    }catch(err){showToast('Could not read that file. Make sure it is a Cold Front data file.','err');}
-  };
-  reader.readAsText(file);input.value='';
+  const file=input.files[0];if(!file){return;}
+  readJsonFile(file);input.value='';
 }
 
 /* ════════ AUTO-RECOVER ON FRESH LOAD ════════
@@ -658,17 +649,27 @@ function importSync(input){
      2. ColdFront_fleet_data.json — served from the same folder as a fallback
    Both merge in (never clobber) using the same rules as a manual import. */
 async function autoRecover(){
-  let fresh=null;
-  if(window.__CF_FLEET_DATA__&&typeof window.__CF_FLEET_DATA__==='object')fresh=window.__CF_FLEET_DATA__;
-  if(!fresh){
-    try{
-      const r=await fetch('ColdFront_fleet_data.json',{cache:'no-store'});
-      if(r.ok)fresh=await r.json();
-    }catch(e){/* no shared file reachable — that is fine */}
+  // 1. Server-injected block (the shared SharePoint copy, the proper path)
+  if(window.__CF_FLEET_DATA__&&typeof window.__CF_FLEET_DATA__==='object'){
+    const n=mergeFleet(window.__CF_FLEET_DATA__);
+    if(n){saveLocal();renderAll();setStrip('ok','Loaded '+n+' record'+(n!==1?'s':'')+' from shared data');return;}
   }
-  if(!fresh||typeof fresh!=='object')return;
-  const added=mergeFleet(fresh);
-  if(added){saveLocal();renderAll();setStrip('ok','Recovered '+added+' record'+(added!==1?'s':'')+' from shared data');}
+  // 2. A server route / sibling file, if one is reachable. Tries the clean
+  //    /fleet-data route first, then a file sitting next to the HTML.
+  for(const url of ['/fleet-data','ColdFront_fleet_data.json']){
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      if(!r.ok)continue;
+      const fresh=await r.json();
+      const n=mergeFleet(fresh);
+      saveLocal();renderAll();
+      setStrip('ok','Loaded '+n+' record'+(n!==1?'s':'')+' from shared data');
+      return;
+    }catch(e){/* not this one — try the next */}
+  }
+  // 3. Nothing auto-reachable. Don't fail silently — tell the user how to load.
+  if(!Object.keys(S.vehicles).length)
+    setStrip('','No data on this device yet — drop ColdFront_fleet_data.json onto the panel, or use Load data.');
 }
 
 /* ════════ PDF UPLOAD ════════ */
@@ -677,9 +678,23 @@ dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');}
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');handleFiles(e.dataTransfer.files);});
 function handleFiles(files){
-  const pdfs=Array.from(files).filter(f=>f.name.toLowerCase().endsWith('.pdf'));
-  if(!pdfs.length)return;
-  (async()=>{for(const f of pdfs)await readPdf(f);})();
+  const arr=Array.from(files);
+  const jsons=arr.filter(f=>f.name.toLowerCase().endsWith('.json'));
+  const pdfs=arr.filter(f=>f.name.toLowerCase().endsWith('.pdf'));
+  jsons.forEach(readJsonFile);
+  if(pdfs.length)(async()=>{for(const f of pdfs)await readPdf(f);})();
+}
+/* Read a Cold Front data file (the ColdFront_fleet_data.json save) and merge it. */
+function readJsonFile(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const added=mergeFleet(JSON.parse(e.target.result));
+      saveLocal();renderAll();
+      showToast('Loaded — '+added+' record'+(added!==1?'s':'')+' merged from '+file.name+'.','good');
+    }catch(err){showToast('Could not read '+file.name+' — make sure it is a Cold Front data file.','err');}
+  };
+  reader.readAsText(file);
 }
 async function readPdf(file){
   showProc(true,file.name);
