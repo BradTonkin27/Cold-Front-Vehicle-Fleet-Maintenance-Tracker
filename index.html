@@ -251,7 +251,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 <body>
 <div class="toast" id="toast"></div>
 <div class="proc" id="proc"><div class="spinner"></div><span id="procMsg">Reading invoice…</span></div>
-<input type="file" id="fi" accept=".pdf,.json" multiple style="display:none" onchange="handleFiles(this.files)">
+<input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
 <input type="file" id="importJson" accept=".json" style="display:none" onchange="importSync(this)">
 
 <div class="app">
@@ -322,7 +322,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
       <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <div class="dz-main">Drop invoice PDFs here</div>
-        <div class="dz-sub">or the <b>ColdFront_fleet_data.json</b> save file — <span class="dz-link">browse</span></div>
+        <div class="dz-sub">or <span class="dz-link">browse to upload</span></div>
       </div>
       <div class="veh-list" id="vl"><div class="veh-empty">No vehicles yet.<br>Add invoices to begin.</div></div>
     </div>
@@ -409,10 +409,6 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
   </div>
 </div>
 
-<!-- Shared fleet data injected by the CF Server from the SharePoint sync folder.
-     The server replaces the JSON between the START/END markers via IndexOf/Substring. -->
-<script>/*__CF_FLEET_DATA_START__*/window.__CF_FLEET_DATA__=null;/*__CF_FLEET_DATA_END__*/</script>
-
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -431,18 +427,6 @@ function saveLocal(){
 }
 function loadLocal(){
   try{const raw=localStorage.getItem(STORE_KEY);if(raw)Object.assign(S.vehicles,JSON.parse(raw));}catch(e){console.warn(e);}
-  normalizeVehicles();
-}
-/* Guarantee every vehicle record is well-formed so the render/stat functions
-   (which all assume v.invoices is an array) can never hit undefined. Drops junk
-   entries and repairs missing invoices arrays from legacy/partial saves. */
-function normalizeVehicles(){
-  Object.keys(S.vehicles).forEach(rego=>{
-    const v=S.vehicles[rego];
-    if(!v||typeof v!=='object'){delete S.vehicles[rego];return;}
-    if(!Array.isArray(v.invoices))v.invoices=[];
-    if(!v.rego)v.rego=rego;
-  });
 }
 function loadCfg(){
   try{const raw=localStorage.getItem(CFG_KEY);if(raw)CFG=Object.assign(CFG,JSON.parse(raw));}catch(e){}
@@ -627,65 +611,26 @@ function exportSync(){
   const a=document.createElement('a');a.download='ColdFront_fleet_data.json';a.href=URL.createObjectURL(blob);a.click();URL.revokeObjectURL(a.href);
   showToast('Saved. Upload ColdFront_fleet_data.json to your shared SharePoint folder so the team sees the latest.','good');
 }
-/* Merge a fresh {rego:vehicle} map into S.vehicles without clobbering existing
-   records. New vehicles are added whole; existing vehicles gain only invoices
-   whose invNum is not already present. Returns the count of records added. */
-function mergeFleet(fresh){
-  if(!fresh||typeof fresh!=='object')return 0;
-  let added=0;
-  Object.keys(fresh).forEach(rego=>{
-    const incoming=fresh[rego];
-    if(!incoming||!Array.isArray(incoming.invoices))return;
-    if(!S.vehicles[rego]){S.vehicles[rego]=incoming;added++;}
-    else{
-      // Existing record may be partial/legacy — make sure it has an invoices array
-      if(!Array.isArray(S.vehicles[rego].invoices))S.vehicles[rego].invoices=[];
-      incoming.invoices.forEach(inv=>{
-        if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
-          S.vehicles[rego].invoices.push(inv);
-          S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));added++;
-        }
-      });
-    }
-  });
-  return added;
-}
 function importSync(input){
-  const file=input.files[0];if(!file){return;}
-  readJsonFile(file);input.value='';
-}
-
-/* ════════ AUTO-RECOVER ON FRESH LOAD ════════
-   localStorage is scoped to the exact origin (scheme + host + port). Open the
-   tracker from a different origin than the one the PDFs were parsed under
-   (e.g. localhost vs 127.0.0.1, file:// vs http://, or a different port) and the
-   local copy looks empty. On every load we also pull the shared copy so the
-   data follows the tool regardless of which origin it was opened from:
-     1. window.__CF_FLEET_DATA__  — injected by the CF Server from SharePoint
-     2. ColdFront_fleet_data.json — served from the same folder as a fallback
-   Both merge in (never clobber) using the same rules as a manual import. */
-async function autoRecover(){
-  // 1. Server-injected block (the shared SharePoint copy, the proper path)
-  if(window.__CF_FLEET_DATA__&&typeof window.__CF_FLEET_DATA__==='object'){
-    const n=mergeFleet(window.__CF_FLEET_DATA__);
-    if(n){saveLocal();renderAll();setStrip('ok','Loaded '+n+' record'+(n!==1?'s':'')+' from shared data');return;}
-  }
-  // 2. A server route / sibling file, if one is reachable. Tries the clean
-  //    /fleet-data route first, then a file sitting next to the HTML.
-  for(const url of ['/fleet-data','ColdFront_fleet_data.json']){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
     try{
-      const r=await fetch(url,{cache:'no-store'});
-      if(!r.ok)continue;
-      const fresh=await r.json();
-      const n=mergeFleet(fresh);
+      const fresh=JSON.parse(e.target.result);let added=0;
+      Object.keys(fresh).forEach(rego=>{
+        if(!S.vehicles[rego]){S.vehicles[rego]=fresh[rego];added++;}
+        else{fresh[rego].invoices.forEach(inv=>{
+          if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
+            S.vehicles[rego].invoices.push(inv);
+            S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));added++;
+          }
+        });}
+      });
       saveLocal();renderAll();
-      setStrip('ok','Loaded '+n+' record'+(n!==1?'s':'')+' from shared data');
-      return;
-    }catch(e){/* not this one — try the next */}
-  }
-  // 3. Nothing auto-reachable. Don't fail silently — tell the user how to load.
-  if(!Object.keys(S.vehicles).length)
-    setStrip('','No data on this device yet — drop ColdFront_fleet_data.json onto the panel, or use Load data.');
+      showToast('Loaded — '+added+' new record'+(added!==1?'s':'')+' merged in.','good');
+    }catch(err){showToast('Could not read that file. Make sure it is a Cold Front data file.','err');}
+  };
+  reader.readAsText(file);input.value='';
 }
 
 /* ════════ PDF UPLOAD ════════ */
@@ -694,27 +639,9 @@ dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');}
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');handleFiles(e.dataTransfer.files);});
 function handleFiles(files){
-  const arr=Array.from(files);
-  const jsons=arr.filter(f=>f.name.toLowerCase().endsWith('.json'));
-  const pdfs=arr.filter(f=>f.name.toLowerCase().endsWith('.pdf'));
-  jsons.forEach(readJsonFile);
-  if(pdfs.length)(async()=>{for(const f of pdfs)await readPdf(f);})();
-}
-/* Read a Cold Front data file (the ColdFront_fleet_data.json save) and merge it. */
-function readJsonFile(file){
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const added=mergeFleet(JSON.parse(e.target.result));
-      saveLocal();renderAll();
-      showToast('Loaded — '+added+' record'+(added!==1?'s':'')+' merged from '+file.name+'.','good');
-    }catch(err){
-      console.error('readJsonFile failed:',err);
-      showToast('Could not read '+file.name+' — '+(err&&err.message?err.message:'is it a Cold Front data file?'),'err');
-    }
-  };
-  reader.onerror=()=>showToast('Could not open '+file.name+' (read error).','err');
-  reader.readAsText(file);
+  const pdfs=Array.from(files).filter(f=>f.name.toLowerCase().endsWith('.pdf'));
+  if(!pdfs.length)return;
+  (async()=>{for(const f of pdfs)await readPdf(f);})();
 }
 async function readPdf(file){
   showProc(true,file.name);
@@ -1067,7 +994,7 @@ function updateStats(){
   document.getElementById('st').textContent='$'+tot.toLocaleString('en-AU',{maximumFractionDigits:0});
 }
 
-function renderAll(){normalizeVehicles();renderList();updateStats();if(S.sel&&S.vehicles[S.sel])selectVeh(S.sel);else showSchedule();}
+function renderAll(){renderList();updateStats();if(S.sel&&S.vehicles[S.sel])selectVeh(S.sel);else showSchedule();}
 
 /* ════════ EXCEL EXPORT ════════ */
 function exportXLS(){
@@ -1099,7 +1026,6 @@ function exportXLS(){
 /* ════════ INIT ════════ */
 window.addEventListener('DOMContentLoaded',()=>{
   loadCfg();loadLocal();renderAll();
-  autoRecover();
   document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
   // FleetComplete live link is only available when served from the CF Server
   const btn=document.getElementById('fcPullBtn');
