@@ -285,7 +285,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
       </svg>
       <div>
         <div class="cf-wordmark">Cold Front</div>
-        <div class="cf-sub">Fleet Maintenance Tracker &nbsp;·&nbsp; v1.2</div>
+        <div class="cf-sub">Fleet Maintenance Tracker &nbsp;·&nbsp; v1.3</div>
       </div>
     </div>
     <div class="cf-actions">
@@ -1080,14 +1080,14 @@ function selectVeh(rego){
 
   // Invoices
   html+='<div class="sec-lbl"><span>Service History</span></div><div class="inv-stack">';
-  const sortedInvs=[...v.invoices].sort((a,b)=>b.date.localeCompare(a.date));
+  const sortedInvs=[...v.invoices].sort((a,b)=>{const da=parseDate(a.date),db=parseDate(b.date);return (db||0)-(da||0);});
   html+=sortedInvs.map((inv,idx)=>{
     const open=single||(idx===0);
     const safe=inv.invNum.replace(/[^a-z0-9]/gi,'_');
     const isSvc=isServiceInvoice(inv);
     return '<div class="inv-row">'
       +'<div class="inv-sum'+(open?' open':'')+'" id="hd-'+safe+'" onclick="toggleInv(\''+safe+'\')">'
-      +'<span class="inv-num">#'+inv.invNum+'</span><span class="inv-date">'+inv.date+'</span>'
+      +'<span class="inv-date">'+inv.date+'</span><span class="inv-num" style="color:var(--light)">#'+inv.invNum+'</span>'
       +(inv.odometer?'<span class="inv-odom"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'+inv.odometer.toLocaleString('en-AU')+' km</span>':'')
       +(!isSvc?'<span class="inv-nonsvc" title="Not counted toward next service date">Non-service</span>':'')
       +'<span class="inv-pill">$'+inv.total.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})+'</span>'
