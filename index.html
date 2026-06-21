@@ -285,7 +285,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
       </svg>
       <div>
         <div class="cf-wordmark">Cold Front</div>
-        <div class="cf-sub">Fleet Maintenance Tracker</div>
+        <div class="cf-sub">Fleet Maintenance Tracker &nbsp;·&nbsp; v1.2</div>
       </div>
     </div>
     <div class="cf-actions">
@@ -773,14 +773,25 @@ function parseLineItems(items,fullText){
     i++;
   }
   if(lines.length===0){
-    // Format: "Description text  QTY  UnitPrice  GST%  Amount" with no item code
-    // pdfjs tokens joined with spaces — match the numeric tail
+    // Format: no item codes — "Description  qty.nn  unitprice.nn  GST%  amount.nn"
+    // Anchor on the Description column header to discard the invoice header block
     const ft=items.map(s=>s.str.trim()).filter(s=>s.length>0).join(' ');
-    const pat=/([A-Za-z][A-Za-z0-9 ,&\/\-\.]{5,80?}?)\s+([\d]+\.[\d]{2})\s+([\d,]+\.[\d]{2})\s+[\d]+%\s+([\d,]+\.[\d]{2})/g;
-    let m;while((m=pat.exec(ft))!==null){
-      const desc=m[1].trim();const qty=m[2];const up=parseFloat(m[3].replace(/,/g,''));const lt=parseFloat(m[4].replace(/,/g,''));
-      if(lt>0&&!desc.match(/^(Subtotal|Total|Payment|Terms|Customer|Description|Quantity|Unit|Amount|GST|Due|Account|Email|Please|View|BSB)/i))
-        lines.push({code:'',desc,qty,unitIncl:(up*1.1).toFixed(2),lineTotal:lt.toFixed(2),nc:false});
+    const descHdrIdx=ft.search(/\bDescription\b/i);
+    const body=descHdrIdx>=0?ft.substring(descHdrIdx):ft;
+    const bodyClean=body.replace(/^Description\s+Quantity\s+Unit\s*Price\s+GST\s+Amount\s+AUD\s*/i,'');
+    const footerIdx=bodyClean.search(/Subtotal|TOTAL\s+GST|Due\s+Date/i);
+    const lineBlock=footerIdx>0?bodyClean.substring(0,footerIdx):bodyClean;
+    const SKIP=/^(Subtotal|Total|Payment|Terms|Customer|GST|AUD|Quantity|Unit|Price|Amount|Description|Reg|-|to)$/i;
+    const numPat=/([\d]{1,5}\.[\d]{2})\s+([\d,]+\.[\d]{2})\s+\d+%\s+([\d,]+\.[\d]{2})/g;
+    let nm;
+    while((nm=numPat.exec(lineBlock))!==null){
+      const qty=nm[1];const up=parseFloat(nm[2].replace(/,/g,''));const lt=parseFloat(nm[3].replace(/,/g,''));
+      if(lt<=0)continue;
+      const before=lineBlock.substring(0,nm.index).trim();
+      const words=before.split(/\s+/).filter(w=>w.length>1&&!SKIP.test(w)&&!/^\d/.test(w)&&!/^INV-/i.test(w)&&!/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/i.test(w));
+      const desc=words.slice(-16).join(' ').replace(/[,\.\s]+$/,'').trim();
+      if(desc.length<4)continue;
+      lines.push({code:'',desc,qty,unitIncl:(up*1.1).toFixed(2),lineTotal:lt.toFixed(2),nc:false});
     }
   }
   if(lines.length===0){
@@ -948,7 +959,8 @@ function renderList(){
   document.getElementById('vc').textContent=vehs.length+' registered';
   if(q)vehs=vehs.filter(v=>v.rego.toLowerCase().includes(q)||(v.model||'').toLowerCase().includes(q));
   const order={overdue:0,soon:1,ok:2,none:3};
-  vehs.sort((a,b)=>{const sa=serviceStatus(a).code,sb=serviceStatus(b).code;return order[sa]-order[sb]||a.rego.localeCompare(b.rego);});
+  function naturalRego(r){return r.replace(/(\d+)/g,n=>n.padStart(8,'0'));}
+  vehs.sort((a,b)=>{const sa=serviceStatus(a).code,sb=serviceStatus(b).code;return order[sa]-order[sb]||naturalRego(a.rego).localeCompare(naturalRego(b.rego));});
   const el=document.getElementById('vl');
   if(!vehs.length){el.innerHTML='<div class="veh-empty">'+(q?'No matches.':'No vehicles yet.<br>Add invoices to begin.')+'</div>';return;}
   el.innerHTML=vehs.map(v=>{
