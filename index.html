@@ -203,6 +203,23 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 .inv-del-btn{font-size:11px;color:var(--act);cursor:pointer;background:none;border:none;font-family:var(--sans);text-decoration:underline;}
 .d-remove{font-size:11px;color:var(--act);cursor:pointer;background:none;border:none;font-family:var(--sans);text-decoration:underline;margin-top:14px;}
 
+/* TYRE PANEL */
+.tyre-panel{border:1px solid var(--rule);border-radius:8px;margin-bottom:20px;overflow:hidden;}
+.tyre-head{padding:11px 16px;background:var(--panel);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--light);}
+.tyre-head svg{width:15px;height:15px;stroke:#888;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.tyre-head .tyre-cnt{margin-left:auto;font-size:11px;color:var(--light);letter-spacing:0;}
+.tyre-none{padding:12px 16px;font-size:12px;color:var(--light);font-style:italic;}
+.tyre-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.tyre-tbl th{text-align:left;padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--light);border-bottom:1px solid var(--rule);background:var(--white);}
+.tyre-tbl td{padding:8px 12px;border-bottom:1px solid var(--rule);vertical-align:top;}
+.tyre-tbl tr:last-child td{border-bottom:none;}
+.tyre-tbl tr:hover td{background:var(--panel);}
+.tyre-size{font-family:var(--mono);font-weight:600;font-size:12px;}
+.tyre-brand{color:var(--mid);font-size:11px;margin-top:2px;}
+.tyre-inv{font-family:var(--mono);font-size:11px;color:var(--light);}
+.tyre-cost{font-family:var(--mono);font-weight:600;font-size:12px;text-align:right;}
+.tyre-odo{font-size:11px;font-family:var(--mono);color:var(--light);}
+
 /* MODAL */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:150;align-items:center;justify-content:center;padding:16px;}
 .modal-bg.show{display:flex;}
@@ -251,8 +268,8 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 <body>
 <div class="toast" id="toast"></div>
 <div class="proc" id="proc"><div class="spinner"></div><span id="procMsg">Reading invoice…</span></div>
-<input type="file" id="fi" accept=".pdf" multiple style="display:none" onchange="handleFiles(this.files)">
-<input type="file" id="importJson" accept=".json" style="display:none" onchange="importSync(this)">
+<input type="file" id="fi" accept=".pdf" multiple style="position:fixed;top:-1000px;left:-1000px;opacity:0" onchange="handleFiles(this.files)">
+<input type="file" id="importJson" accept=".json" style="position:fixed;top:-1000px;left:-1000px;opacity:0" onchange="importSync(this)">
 
 <div class="app">
   <div class="cf-header">
@@ -778,6 +795,42 @@ function buildSummary(notes,lines){
   return '';
 }
 
+/* ════════ TYRE EXTRACTOR ════════ */
+function isTyreLine(l){
+  const d=(l.desc+' '+(l.code||'')).toUpperCase();
+  return /TYRE|TIRE|DUNLOP|BRIDGESTONE|MICHELIN|GOODYEAR|PIRELLI|MAXXIS|YOKOHAMA|HANKOOK|KUMHO|CONTINENTAL|ECONODRIVE|GRANDTREK|LATITUDE|WRANGLER|DUELER|TRANSPORT|195R|205R|215R|225R|235R|245R|255R|265R|275R|185\/|195\/|205\/|215\/|225\/|235\/|245\/|255\/|265\/|275\/|700R|750R|7\.50R|195R15|175\/65|185\/65|195\/65|215\/65|225\/65/.test(d);
+}
+function extractTyreSize(desc){
+  // Match patterns like 195R15C, 225/65R17, 7.50R16, 205/70R15C
+  const m=desc.match(/\b(\d{3}[\/R]\d{2}[CR]?\d{0,2}[A-Z]?\s*\d{3}\/\d{3}|\d{3}[\/R]\d{2}[A-Z]?\d{0,2}|\d+\.\d+R\d+)\b/i);
+  return m?m[1].toUpperCase().replace(/\s+/g,''):'';
+}
+function extractTyreBrand(desc){
+  const brands=['DUNLOP','BRIDGESTONE','MICHELIN','GOODYEAR','PIRELLI','MAXXIS','YOKOHAMA','HANKOOK','KUMHO','CONTINENTAL','TOYO','NITTO','FALKEN','COOPER','GENERAL'];
+  const u=desc.toUpperCase();
+  for(const b of brands){if(u.includes(b))return b.charAt(0)+b.slice(1).toLowerCase();}
+  return '';
+}
+function parseTyres(inv){
+  const tyres=[];
+  (inv.lines||[]).forEach(l=>{
+    if(!isTyreLine(l))return;
+    const size=extractTyreSize(l.desc+' '+l.code);
+    const brand=extractTyreBrand(l.desc+' '+l.code);
+    tyres.push({
+      date:inv.date, invNum:inv.invNum, odometer:inv.odometer,
+      code:l.code||'', desc:l.desc, size, brand,
+      qty:parseInt(l.qty)||1, lineTotal:parseFloat(l.lineTotal)||0, nc:l.nc
+    });
+  });
+  return tyres;
+}
+function allTyres(v){
+  const t=[];
+  v.invoices.forEach(inv=>t.push(...parseTyres(inv)));
+  return t.sort((a,b)=>b.date.localeCompare(a.date));
+}
+
 /* ════════ MANUAL ENTRY ════════ */
 function openManual(filename){
   ['mf_inv','mf_date','mf_rego','mf_odom','mf_model','mf_total','mf_gst','mf_summary','mf_notes'].forEach(id=>document.getElementById(id).value='');
@@ -955,6 +1008,30 @@ function selectVeh(rego){
     +'<div class="odom-val">'+(latestInv?latestInv.date:'—')+'</div>'
     +'<div class="odom-sub">'+(latestInv?(latestInv.summary||'Service recorded'):'No service recorded')+'</div></div></div>';
 
+  // Tyre history panel
+  const tyreHistory=allTyres(v);
+  html+='<div class="tyre-panel">'
+    +'<div class="tyre-head"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>Tyre history'
+    +'<span class="tyre-cnt">'+tyreHistory.length+' line'+(tyreHistory.length!==1?'s':'')+' recorded</span></div>';
+  if(!tyreHistory.length){
+    html+='<div class="tyre-none">No tyre line items detected in any invoice for this vehicle.</div>';
+  } else {
+    html+='<table class="tyre-tbl"><thead><tr><th>Date</th><th>Size / Product</th><th>Qty</th><th>Odometer</th><th class="right" style="text-align:right">Cost (GST)</th><th>Invoice</th></tr></thead><tbody>';
+    html+=tyreHistory.map(t=>{
+      const label=t.size?('<span class="tyre-size">'+t.size+'</span>'+(t.brand?'<div class="tyre-brand">'+t.brand+'</div>':'')+'<div class="tyre-brand">'+t.desc.substring(0,50)+'</div>'):('<span class="tyre-size">'+t.desc.substring(0,50)+'</span>');
+      return '<tr>'
+        +'<td>'+t.date+'</td>'
+        +'<td>'+label+'</td>'
+        +'<td>'+t.qty+'</td>'
+        +'<td class="tyre-odo">'+(t.odometer?t.odometer.toLocaleString('en-AU')+' km':'—')+'</td>'
+        +'<td class="tyre-cost">'+(t.nc?'N/C':'$'+t.lineTotal.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2}))+'</td>'
+        +'<td class="tyre-inv">#'+t.invNum+'</td>'
+        +'</tr>';
+    }).join('');
+    html+='</tbody></table>';
+  }
+  html+='</div>';
+
   // Invoices
   html+='<div class="sec-lbl"><span>Service invoices</span></div><div class="inv-stack">';
   html+=v.invoices.map((inv,idx)=>{
@@ -1019,6 +1096,14 @@ function exportXLS(){
   });});
   const ws2=XLSX.utils.aoa_to_sheet(s2);ws2['!cols']=[{wch:10},{wch:26},{wch:11},{wch:13},{wch:13},{wch:30},{wch:14},{wch:38},{wch:6},{wch:13},{wch:15},{wch:11},{wch:13}];
   XLSX.utils.book_append_sheet(wb,ws2,'Invoice Detail');
+  const s3=[['Rego','Model','Date','Invoice #','Odometer (km)','Size','Brand','Description','Qty','Cost (incl GST)']];
+  vehs.forEach(v=>{
+    allTyres(v).forEach(t=>{
+      s3.push([v.rego,v.model,t.date,t.invNum,t.odometer||'',t.size,t.brand,t.desc,t.qty,t.nc?'N/C':t.lineTotal]);
+    });
+  });
+  const ws3=XLSX.utils.aoa_to_sheet(s3);ws3['!cols']=[{wch:10},{wch:26},{wch:13},{wch:11},{wch:13},{wch:14},{wch:12},{wch:40},{wch:5},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws3,'Tyre History');
   const now=new Date();
   XLSX.writeFile(wb,'ColdFront_Fleet_'+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'.xlsx');
 }
