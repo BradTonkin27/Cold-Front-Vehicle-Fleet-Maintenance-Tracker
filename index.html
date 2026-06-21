@@ -1079,9 +1079,10 @@ function selectVeh(rego){
   html+='</div>';
 
   // Invoices
-  html+='<div class="sec-lbl"><span>Service invoices</span></div><div class="inv-stack">';
-  html+=v.invoices.map((inv,idx)=>{
-    const open=single||(idx===v.invoices.length-1);
+  html+='<div class="sec-lbl"><span>Service History</span></div><div class="inv-stack">';
+  const sortedInvs=[...v.invoices].sort((a,b)=>b.date.localeCompare(a.date));
+  html+=sortedInvs.map((inv,idx)=>{
+    const open=single||(idx===0);
     const safe=inv.invNum.replace(/[^a-z0-9]/gi,'_');
     const isSvc=isServiceInvoice(inv);
     return '<div class="inv-row">'
