@@ -285,7 +285,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
       </svg>
       <div>
         <div class="cf-wordmark">Cold Front</div>
-        <div class="cf-sub">Fleet Maintenance Tracker &nbsp;·&nbsp; v1.3</div>
+        <div class="cf-sub">Fleet Maintenance Tracker &nbsp;·&nbsp; v1.4</div>
       </div>
     </div>
     <div class="cf-actions">
@@ -454,13 +454,18 @@ function saveCfg(){localStorage.setItem(CFG_KEY,JSON.stringify(CFG));}
 /* ════════ SERVICE REMINDER ENGINE ════════ */
 function parseDate(str){
   if(!str)return null;
-  const m=String(str).match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})/);
-  if(!m)return null;
-  const months={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-  const mon=months[m[2].slice(0,3).toLowerCase()];
-  if(mon===undefined)return null;
-  let y=parseInt(m[3]);if(y<100)y+=2000;
-  return new Date(y,mon,parseInt(m[1]));
+  const s=String(str).trim();
+  // DD MMM YYYY or DD MMM YY
+  const m1=s.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})/);
+  if(m1){
+    const months={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+    const mon=months[m1[2].slice(0,3).toLowerCase()];
+    if(mon!==undefined){let y=parseInt(m1[3]);if(y<100)y+=2000;return new Date(y,mon,parseInt(m1[1]));}
+  }
+  // DD/MM/YYYY or DD/MM/YY or DD-MM-YYYY
+  const m2=s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m2){let y=parseInt(m2[3]);if(y<100)y+=2000;return new Date(y,parseInt(m2[2])-1,parseInt(m2[1]));}
+  return null;
 }
 function fmtDate(d){
   if(!d)return '—';
