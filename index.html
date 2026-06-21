@@ -680,7 +680,9 @@ function parse(items,filename){
   const invM=fullText.match(/Invoice No\.?\s*(\d{4,7})/i)
     ||fullText.match(/Tax Invoice\s+(\d{5,7})/i)
     ||fullText.match(/Invoice Number\s+(INV-[\w\-]+)/i)
-    ||fullText.match(/Number:[^0-9]*(\d{5,7})/i);
+    ||fullText.match(/Invoice Number\b[^I]{0,60}(INV-[\w\-]+)/i)
+    ||fullText.match(/Number:[^0-9]*(\d{5,7})/i)
+    ||fullText.match(/\b(INV-[\w\-]+)\b/i);
   const invNum=invM?invM[1]:filename.replace('.pdf','');
   const dateM=fullText.match(/Invoice Date\s+(\d{1,2}\s+\w+\s+\d{2,4})/i)
     ||fullText.match(/Date:\s*(\d{1,2}\s+\w+\s+\d{2,4})/i)
