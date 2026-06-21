@@ -201,6 +201,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
 .inv-foot b{color:var(--mid);font-weight:600;}
 .inv-del-row{padding:7px 14px 10px;text-align:right;}
 .inv-del-btn{font-size:11px;color:var(--act);cursor:pointer;background:none;border:none;font-family:var(--sans);text-decoration:underline;}
+.inv-nonsvc{font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;padding:2px 8px;border-radius:3px;background:#f0f0f0;color:#888;border:1px solid #ddd;white-space:nowrap;}
 .d-remove{font-size:11px;color:var(--act);cursor:pointer;background:none;border:none;font-family:var(--sans);text-decoration:underline;margin-top:14px;}
 
 /* TYRE PANEL */
@@ -468,8 +469,20 @@ function fmtDate(d){
 function vehInterval(v){return v.intervalMonths||CFG.months||6;}
 function vehIntervalKm(v){return v.intervalKm||CFG.km||10000;}
 
+const NON_SERVICE_KEYWORDS=/WINDSCREEN|WINDSHIELD|TYRE REPLACE|TIRE REPLACE|BODY REPAIR|PANEL BEAT|SMASH REPAIR|REGISTRATION|REGO RENEWAL|INSURANCE|ROADSIDE|DECAL|SIGNAGE|AERIAL|ANTENNA|MIRROR GLASS/i;
+function isServiceInvoice(inv){
+  const all=((inv.summary||'')+' '+(inv.notes||'')+' '+((inv.lines||[]).map(l=>l.desc).join(' '))).toUpperCase();
+  // Windscreen and other non-maintenance work doesn't reset the service clock
+  if(/WINDSCREEN|WINDSHIELD/.test(all))return false;
+  if(/TYRE|TIRE/.test(all)&&!/LOG BOOK|SERVICE|OIL|FILTER/.test(all))return false;
+  if(/BODY REPAIR|PANEL BEAT|SMASH REPAIR|REGISTRATION|REGO RENEWAL|INSURANCE/.test(all))return false;
+  return true;
+}
+
 function nextService(v){
-  const dated=v.invoices.filter(i=>parseDate(i.date)).sort((a,b)=>parseDate(a.date)-parseDate(b.date));
+  // Only count invoices that represent actual maintenance services
+  const svcInvoices=v.invoices.filter(i=>isServiceInvoice(i));
+  const dated=(svcInvoices.length?svcInvoices:v.invoices).filter(i=>parseDate(i.date)).sort((a,b)=>parseDate(a.date)-parseDate(b.date));
   if(!dated.length)return null;
   const last=dated[dated.length-1];
   const lastDate=parseDate(last.date);
@@ -760,6 +773,17 @@ function parseLineItems(items,fullText){
     i++;
   }
   if(lines.length===0){
+    // Format: "Description text  QTY  UnitPrice  GST%  Amount" with no item code
+    // pdfjs tokens joined with spaces — match the numeric tail
+    const ft=items.map(s=>s.str.trim()).filter(s=>s.length>0).join(' ');
+    const pat=/([A-Za-z][A-Za-z0-9 ,&\/\-\.]{5,80?}?)\s+([\d]+\.[\d]{2})\s+([\d,]+\.[\d]{2})\s+[\d]+%\s+([\d,]+\.[\d]{2})/g;
+    let m;while((m=pat.exec(ft))!==null){
+      const desc=m[1].trim();const qty=m[2];const up=parseFloat(m[3].replace(/,/g,''));const lt=parseFloat(m[4].replace(/,/g,''));
+      if(lt>0&&!desc.match(/^(Subtotal|Total|Payment|Terms|Customer|Description|Quantity|Unit|Amount|GST|Due|Account|Email|Please|View|BSB)/i))
+        lines.push({code:'',desc,qty,unitIncl:(up*1.1).toFixed(2),lineTotal:lt.toFixed(2),nc:false});
+    }
+  }
+  if(lines.length===0){
     const rows=fullText.split(/\n/);
     for(const row of rows){
       const m=row.match(/^(.{3,60?})\s+(\d+\.\d{2})\s+([\d.]+)\s+\d+%\s+([\d.]+)\s*$/);
@@ -1047,10 +1071,12 @@ function selectVeh(rego){
   html+=v.invoices.map((inv,idx)=>{
     const open=single||(idx===v.invoices.length-1);
     const safe=inv.invNum.replace(/[^a-z0-9]/gi,'_');
+    const isSvc=isServiceInvoice(inv);
     return '<div class="inv-row">'
       +'<div class="inv-sum'+(open?' open':'')+'" id="hd-'+safe+'" onclick="toggleInv(\''+safe+'\')">'
       +'<span class="inv-num">#'+inv.invNum+'</span><span class="inv-date">'+inv.date+'</span>'
       +(inv.odometer?'<span class="inv-odom"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'+inv.odometer.toLocaleString('en-AU')+' km</span>':'')
+      +(!isSvc?'<span class="inv-nonsvc" title="Not counted toward next service date">Non-service</span>':'')
       +'<span class="inv-pill">$'+inv.total.toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2})+'</span>'
       +'<span class="inv-chev'+(open?' open':'')+'" id="ch-'+safe+'">&#9660;</span></div>'
       +(inv.summary?'<div class="inv-quick"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 00-1.4 0l-8 8a1 1 0 000 1.4l2 2a1 1 0 001.4 0l8-8a1 1 0 000-1.4l-2-2z"/><path d="M19 19H5"/></svg>'+inv.summary+'</div>':'')
@@ -1061,6 +1087,7 @@ function selectVeh(rego){
         +'</tbody></table>':'<div style="font-size:12px;color:var(--light);padding:4px 0;font-style:italic;">No line items detected</div>')
       +(inv.notes?'<div class="inv-notes">'+inv.notes+'</div>':'')
       +'<div class="inv-foot"><span>GST <b>$'+inv.gst.toFixed(2)+'</b></span><span>Ex GST <b>$'+(inv.total-inv.gst).toFixed(2)+'</b></span><span>Incl GST <b>$'+inv.total.toFixed(2)+'</b></span></div>'
+      +(!isSvc?'<div style="font-size:11px;color:var(--light);margin-top:8px;padding:7px 10px;background:var(--panel);border-radius:4px;border-left:3px solid #ccc;">This invoice is not counted toward the next service date — it is recorded for spend tracking only.</div>':'')
       +'<div class="inv-del-row"><button class="inv-del-btn" onclick="deleteInvoice(\''+v.rego+'\',\''+inv.invNum+'\')">Remove this invoice</button></div>'
       +'</div></div>';
   }).join('');
