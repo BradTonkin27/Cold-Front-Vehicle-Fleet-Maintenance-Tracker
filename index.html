@@ -285,7 +285,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 56p
       </svg>
       <div>
         <div class="cf-wordmark">Cold Front</div>
-        <div class="cf-sub">Fleet Maintenance Tracker &nbsp;·&nbsp; v1.5</div>
+        <div class="cf-sub">Fleet Maintenance Tracker &nbsp;·&nbsp; v1.7</div>
       </div>
     </div>
     <div class="cf-actions">
@@ -657,7 +657,7 @@ function importSync(input){
         else{fresh[rego].invoices.forEach(inv=>{
           if(!S.vehicles[rego].invoices.find(i=>i.invNum===inv.invNum)){
             S.vehicles[rego].invoices.push(inv);
-            S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));added++;
+            S.vehicles[rego].invoices.sort((a,b)=>(parseDate(a.date)||0)-(parseDate(b.date)||0));added++;
           }
         });}
       });
@@ -703,6 +703,7 @@ function parse(items,filename){
     ||fullText.match(/\b(INV-[\w\-]+)\b/i);
   const invNum=invM?invM[1]:filename.replace('.pdf','');
   const dateM=fullText.match(/Invoice Date\s+(\d{1,2}\s+\w+\s+\d{2,4})/i)
+    ||fullText.match(/Issue date\s+(\d{1,2}\s+\w+\s+\d{2,4})/i)
     ||fullText.match(/Date:\s*(\d{1,2}\s+\w+\s+\d{2,4})/i)
     ||fullText.match(/Date\s+(\d{1,2}\s+\w+\s+\d{2,4})/i);
   const date=dateM?dateM[1]:'';
@@ -730,10 +731,13 @@ function parse(items,filename){
   const totalM=fullText.match(/Amount Payable\s*\$([\d,]+\.\d{2})/i)
     ||fullText.match(/TOTAL\s+AUD\s+([\d,]+\.\d{2})/i)
     ||fullText.match(/TOTAL\s+AUD\s+([\d,]+)/i)
-    ||fullText.match(/Total\s*\$\s*([\d,]+\.?\d*)/i);
+    ||fullText.match(/Total\s*\$\s*([\d,]+\.?\d*)/i)
+    ||fullText.match(/Amount due\s*\$\s*([\d,]+\.\d{2})/i)
+    ||fullText.match(/\bTotal\s+([\d,]+\.\d{2})\b/i);
   const total=totalM?parseFloat(totalM[1].replace(/,/g,'')):0;
   const gstM=fullText.match(/GST Amount\s*\$?([\d,]+\.\d{2})/i)
     ||fullText.match(/INCLUDES\s+GST[^\d]*([\d,]+\.\d{2})/i)
+    ||fullText.match(/Includes\s+GST\s+\d+%\s+of\s+([\d,]+\.\d{2})/i)
     ||fullText.match(/GST of\s*([\d,]+\.?\d*)/i)
     ||fullText.match(/TOTAL\s+GST\s+[\d%]+\s+([\d,]+\.\d{2})/i)
     ||fullText.match(/TOTAL\s+GST[^\d]*([\d,]+\.\d{2})/i);
@@ -745,7 +749,7 @@ function parse(items,filename){
   if(!S.vehicles[rego])S.vehicles[rego]={rego,model,vin,invoices:[]};
   if(S.vehicles[rego].invoices.find(i=>i.invNum===invNum)){showToast('Invoice #'+invNum+' is already recorded for '+rego+'.','warn');return;}
   S.vehicles[rego].invoices.push(inv);
-  S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
+  S.vehicles[rego].invoices.sort((a,b)=>(parseDate(a.date)||0)-(parseDate(b.date)||0));
   saveLocal();renderList();updateStats();selectVeh(rego);
   showToast('Invoice #'+invNum+' added for '+rego+'.','good');
 }
@@ -776,6 +780,26 @@ function parseLineItems(items,fullText){
       i=j;continue;
     }
     i++;
+  }
+  if(lines.length===0){
+    // Format: "Description  Quantity  Price  Tax  Amount" (e.g. Enterprise Auto Repairs)
+    // No item codes, decimal quantities (7.5), amounts already include GST. Rows are chained
+    // so each description is only the text between the previous row's amount and this row's qty.
+    const ft=items.map(s=>s.str.trim()).filter(s=>s.length>0).join(' ');
+    const hdr=ft.match(/Description\s+Quantity\s+Price\s+Tax\s+Amount\s+/i);
+    if(hdr){
+      const body=ft.substring(hdr.index+hdr[0].length);
+      const endIdx=body.search(/View online|How to Pay|Subtotal/i);
+      const block=endIdx>0?body.substring(0,endIdx):body;
+      const rowPat=/(.+?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d{2})\s+\d+%\s+([\d,]+\.\d{2})/g;
+      let rm;
+      while((rm=rowPat.exec(block))!==null){
+        const desc=rm[1].trim();
+        const amt=parseFloat(rm[4].replace(/,/g,''));
+        if(desc.length<2||amt<=0)continue;
+        lines.push({code:'',desc,qty:rm[2],unitIncl:rm[3].replace(/,/g,''),lineTotal:amt.toFixed(2),nc:false});
+      }
+    }
   }
   if(lines.length===0){
     // Format: no item codes — "Description  qty.nn  unitprice.nn  GST%  amount.nn"
@@ -821,25 +845,37 @@ function parseLineItems(items,fullText){
   return lines;
 }
 function parseNotes(text){
-  const m=text.match(/((?:DIAGNOSE|CARRY OUT|CARRIED OUT|SERVICE\s+REPLACED|NOTE:)[\s\S]{10,600}?)(?=Payment Method:|Our New Bank|ALL CARD|Total includes|INCLUDES\s+GST|\*\*\*PLEASE|PAYMENT ADVICE|OIL FILTER|Totals\s|\$[\d])/i);
+  const m=text.match(/((?:DIAGNOSE|CARRY OUT|CARRIED OUT|SERVICE\s+REPLACED|NOTE:)[\s\S]{10,600}?)(?=\s\d+\s+0\.00\s+0\.00|View online|How to Pay|Subtotal|Payment Method:|Our New Bank|ALL CARD|Total includes|INCLUDES\s+GST|\*\*\*PLEASE|PAYMENT ADVICE|OIL FILTER|Totals\s|\$[\d])/i);
   if(m)return m[1].replace(/\s+/g,' ').trim().substring(0,500);
   return '';
 }
 function buildSummary(notes,lines){
   const n=(notes||'').toUpperCase();const descs=lines.map(l=>l.desc.toUpperCase()).join(' ');const all=n+' '+descs;
+  // Tyre WORK = a tyre line item, or notes saying tyres were fitted/supplied/replaced.
+  // A note like "CHECKED TYRE PRESSURES" or "TYRE HAS PUNCTURE" is not tyre work.
+  const notesTyre=/\b(?:FIT|FITTED|SUPPLY|SUPPLIED|REPLACE|REPLACED|NEW)\b[^.]{0,40}\b(?:TYRES?|TIRES?)\b/.test(n)
+    ||/\b(?:TYRES?|TIRES?)\b[^.]{0,20}\b(?:FITTED|REPLACED|SUPPLIED)\b/.test(n)
+    ||(lines.length===0&&/TYRE|TIRE|DUNLOP|BRIDGESTONE/.test(n)&&!/PRESSURE/.test(n));
+  const tyreWork=lines.some(isTyreLine)||notesTyre;
   if(all.includes('TURBO'))return 'Supply & install replacement turbo';
   if(all.includes('WINDSCREEN')||all.includes('WINDSHIELD'))return 'Windscreen replacement';
   if(all.includes('LOG BOOK')||all.includes('LOGBOOK')){
     const extras=[];
-    if(all.includes('TYRE')||all.includes('TIRE')||all.includes('DUNLOP')||all.includes('BRIDGESTONE')||all.includes('MICHELIN'))extras.push('tyres');
+    if(tyreWork)extras.push('tyres');
     if(all.includes('ALIGNMENT'))extras.push('wheel alignment');
     if(all.includes('BRAKE')&&(all.includes('PAD')||all.includes('ROTOR')))extras.push('brakes');
     return extras.length?'Log book service + '+extras.join(', '):'Log book service';
   }
   if(all.includes('BRAKE')&&(all.includes('PAD')||all.includes('ROTOR')))return 'Brake pads & rotors replacement';
-  if(all.includes('TYRE')||all.includes('TIRE')||all.includes('DUNLOP')||all.includes('BRIDGESTONE'))return 'Tyre replacement';
+  if(all.includes('OIL')){
+    const extras=[];
+    if(/GEARBOX|DIFFERENTIAL|TRANSMISSION/.test(all))extras.push('gearbox & diff oil');
+    if(tyreWork)extras.push('tyres');
+    if(all.includes('ALIGNMENT'))extras.push('wheel alignment');
+    return extras.length?'Oil & filter service + '+extras.join(', '):'Oil & filter service';
+  }
+  if(tyreWork)return 'Tyre replacement';
   if(all.includes('ALIGNMENT'))return 'Wheel alignment';
-  if(all.includes('OIL'))return 'Oil & filter service';
   if(all.includes('DIAGNOSE')||all.includes('INSPECT'))return 'Diagnosis & inspection';
   if(lines.length>0){const d=lines[0].desc;return d.charAt(0).toUpperCase()+d.slice(1).toLowerCase().substring(0,50);}
   return '';
@@ -900,7 +936,7 @@ function saveManual(){
   if(!S.vehicles[rego])S.vehicles[rego]={rego,model:inv.model,vin:'',invoices:[]};
   if(S.vehicles[rego].invoices.find(i=>i.invNum===invNum)){showToast('Invoice #'+invNum+' is already recorded for '+rego+'.','warn');return;}
   S.vehicles[rego].invoices.push(inv);
-  S.vehicles[rego].invoices.sort((a,b)=>a.date.localeCompare(b.date));
+  S.vehicles[rego].invoices.sort((a,b)=>(parseDate(a.date)||0)-(parseDate(b.date)||0));
   saveLocal();renderList();updateStats();selectVeh(rego);closeModal('manualModal');
   showToast('Invoice #'+invNum+' added for '+rego+'.','good');
 }
@@ -1022,7 +1058,7 @@ function selectVeh(rego){
   const st=serviceStatus(v);
   const withOdom=[...v.invoices].filter(i=>i.odometer>0).sort((a,b)=>b.odometer-a.odometer);
   const latestOdom=withOdom.length?withOdom[0]:null;
-  const latestInv=v.invoices[v.invoices.length-1];
+  const latestInv=st.lastInv||null;
   const single=v.invoices.length===1;
   const months=vehInterval(v);
   let html='<button class="back-link" onclick="showSchedule()"><svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to schedule</button>'
@@ -1056,7 +1092,7 @@ function selectVeh(rego){
     +'<div class="odom-val">'+(latestOdom?latestOdom.odometer.toLocaleString('en-AU')+' km':'—')+'</div>'
     +'<div class="odom-sub">'+(latestOdom?latestOdom.date+' · #'+latestOdom.invNum:'No odometer data')+'</div></div>'
     +'<div class="odom-card"><div class="odom-lbl"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Last service date</div>'
-    +'<div class="odom-val">'+(latestInv?latestInv.date:'—')+'</div>'
+    +'<div class="odom-val">'+(st.lastDate?fmtDate(st.lastDate):'—')+'</div>'
     +'<div class="odom-sub">'+(latestInv?(latestInv.summary||'Service recorded'):'No service recorded')+'</div></div></div>';
 
   // Tyre history panel
@@ -1139,14 +1175,14 @@ function exportXLS(){
     const t=v.invoices.reduce((s,i)=>s+i.total,0);const g=v.invoices.reduce((s,i)=>s+i.gst,0);
     const wo=[...v.invoices].filter(i=>i.odometer>0).sort((a,b)=>b.odometer-a.odometer);
     const st=serviceStatus(v);
-    s1.push([v.rego,v.model,v.vin,v.invoices.length,wo.length?wo[0].odometer:'',v.invoices.length?v.invoices[v.invoices.length-1].date:'',st.dueDate?fmtDate(st.dueDate):'',st.code==='overdue'?'OVERDUE':st.code==='soon'?'Due soon':st.code==='ok'?'Up to date':'No data',t,g,t-g]);
+    s1.push([v.rego,v.model,v.vin,v.invoices.length,wo.length?wo[0].odometer:'',st.lastDate?fmtDate(st.lastDate):'',st.dueDate?fmtDate(st.dueDate):'',st.code==='overdue'?'OVERDUE':st.code==='soon'?'Due soon':st.code==='ok'?'Up to date':'No data',t,g,t-g]);
   });
   s1.push([]);s1.push(['','','','','','','','Grand Total',vehs.flatMap(v=>v.invoices).reduce((s,i)=>s+i.total,0),'','']);
   const ws1=XLSX.utils.aoa_to_sheet(s1);ws1['!cols']=[{wch:12},{wch:30},{wch:22},{wch:9},{wch:16},{wch:14},{wch:16},{wch:12},{wch:18},{wch:11},{wch:13}];
   XLSX.utils.book_append_sheet(wb,ws1,'Summary');
   const s2=[['Rego','Model','Invoice #','Date','Odometer (km)','Summary','Code','Description','Qty','Unit (GST)','Line Total (GST)','Invoice GST','Invoice Total']];
   vehs.forEach(v=>{v.invoices.forEach(inv=>{
-    if(inv.lines.length){inv.lines.forEach((l,i)=>{s2.push([v.rego,v.model,inv.invNum,inv.date,i===0?(inv.odometer||''):'',i===0?inv.summary:'',l.code,l.desc,parseInt(l.qty)||l.qty,l.nc?'N/C':parseFloat(l.unitIncl),l.nc?'N/C':parseFloat(l.lineTotal),i===0?inv.gst:'',i===0?inv.total:'']);});}
+    if(inv.lines.length){inv.lines.forEach((l,i)=>{s2.push([v.rego,v.model,inv.invNum,inv.date,i===0?(inv.odometer||''):'',i===0?inv.summary:'',l.code,l.desc,parseFloat(l.qty)||l.qty,l.nc?'N/C':parseFloat(l.unitIncl),l.nc?'N/C':parseFloat(l.lineTotal),i===0?inv.gst:'',i===0?inv.total:'']);});}
     else{s2.push([v.rego,v.model,inv.invNum,inv.date,inv.odometer||'',inv.summary,'','','','','',inv.gst,inv.total]);}
   });});
   const ws2=XLSX.utils.aoa_to_sheet(s2);ws2['!cols']=[{wch:10},{wch:26},{wch:11},{wch:13},{wch:13},{wch:30},{wch:14},{wch:38},{wch:6},{wch:13},{wch:15},{wch:11},{wch:13}];
